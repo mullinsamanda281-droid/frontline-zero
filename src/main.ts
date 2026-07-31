@@ -6,10 +6,13 @@ import { GameState, SceneManager } from './engine/sceneManager';
 import { Keyboard } from './engine/input/keyboard';
 import { MouseLook, PointerLock } from './engine/input/mouseLook';
 import { FpsCamera } from './engine/camera/fpsCamera';
+import { Vec3 } from './engine/camera/vec3';
 import { SlideController } from './engine/movement/slide';
 import { LeanController } from './engine/movement/lean';
 import { DiveController } from './engine/movement/dive';
 import { BunnyHopController } from './engine/movement/bunnyHop';
+import { WeaponRuntime } from './engine/weapons/weapon';
+import { WEAPONS } from './engine/weapons/weapons';
 
 const MOUSE_SENSITIVITY = 0.002;
 
@@ -64,8 +67,59 @@ const slide = new SlideController({});
 const lean = new LeanController({});
 const dive = new DiveController({});
 const bunnyHop = new BunnyHopController({});
+const weapon = new WeaponRuntime(WEAPONS.ar);
+
+class TestTarget {
+  readonly mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 2, 0.5),
+    new THREE.MeshLambertMaterial({ color: 0xcc5544 }),
+  );
+  hp = 100;
+  constructor(x: number, z: number) {
+    this.mesh.position.set(x, 1, z);
+    scene.add(this.mesh);
+  }
+
+  takeDamage(amount: number): void {
+    this.hp -= amount;
+    this.mesh.rotation.x = Math.max(0, this.mesh.rotation.x + 0.01);
+    if (this.hp <= 0) {
+      this.hp = 100;
+      this.mesh.position.x = (Math.random() * 2 - 1) * 5;
+      this.mesh.position.z = -8 - Math.random() * 4;
+      this.mesh.rotation.x = 0;
+    }
+  }
+}
+
+const targets: TestTarget[] = [new TestTarget(0, -8), new TestTarget(3, -6), new TestTarget(-3, -7)];
+const targetMeshes = targets.map((t) => t.mesh);
+
+function raycastTargets(origin: Vec3, direction: Vec3, range: number) {
+  const raycaster = new THREE.Raycaster();
+  raycaster.far = range;
+  raycaster.set(
+    new THREE.Vector3(origin.x, origin.y, origin.z),
+    new THREE.Vector3(direction.x, direction.y, direction.z),
+  );
+  const hits = raycaster.intersectObjects(targetMeshes, false);
+  if (hits.length === 0) return { target: null, distance: range };
+  const hit = hits[0];
+  return { target: targets.find((t) => t.mesh === hit.object) ?? null, distance: hit.distance };
+}
 
 const fpsCounter = new FpsCounter(document.getElementById('fps-counter') as HTMLElement);
+
+let triggerHeld = false;
+window.addEventListener('mousedown', (event) => {
+  if (event.button === 0 && pointerLock.isLocked) triggerHeld = true;
+});
+window.addEventListener('mouseup', (event) => {
+  if (event.button === 0) triggerHeld = false;
+});
+window.addEventListener('keydown', (event) => {
+  if (event.code === 'KeyR') weapon.reload();
+});
 
 function resize(): void {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -95,6 +149,25 @@ const gameLoop = new GameLoop({
     bunnyHop.update(16.67, player, keyboard.isDown('Space'));
     lean.update(1 / 60, player, keyboard.isDown('KeyQ'), keyboard.isDown('KeyE'));
     dive.update(1 / 60, player, diveHeld, keyboard.isDown('KeyZ'));
+
+    const horizontalSpeed = Math.hypot(player.velocity.x, player.velocity.z);
+    weapon.update(1 / 60, { moving: horizontalSpeed > 0.1, triggerHeld });
+    if (triggerHeld && weapon.canFire) {
+      const yaw = player.yaw;
+      const pitch = player.pitch;
+      const eye = new Vec3(
+        player.position.x + player.right.x * lean.offset,
+        player.position.y + player.eyeHeight + lean.heightOffset,
+        player.position.z + player.right.z * lean.offset,
+      );
+      const dir = new Vec3(
+        -Math.sin(yaw) * Math.cos(pitch),
+        Math.sin(pitch),
+        -Math.cos(yaw) * Math.cos(pitch),
+      );
+      weapon.fire(eye, dir, raycastTargets, Math.random);
+      player.look(-weapon.recoil.yawOffset, -weapon.recoil.pitchOffset, 1);
+    }
   },
   render: () => {
     const right = player.right;

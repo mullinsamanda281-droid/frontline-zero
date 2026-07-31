@@ -111,7 +111,6 @@ const hitmarkerEl = document.getElementById('hitmarker') as HTMLElement;
 const healthFill = document.getElementById('health-fill') as HTMLElement;
 let health = PLAYER_MAX_HEALTH;
 let targetsDown = 0;
-let hitmarkerTimer = 0;
 
 class TestTarget implements Damageable {
   readonly body = new THREE.Mesh(

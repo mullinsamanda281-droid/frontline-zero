@@ -44,6 +44,8 @@ export class FpsCamera {
   pitch = 0;
   onGround = true;
   sprintFactor = 1;
+  eyeHeight = 1.6;
+  speedMultiplier = 1;
   readonly stamina: Stamina;
   private readonly options: ResolvedOptions;
 
@@ -88,7 +90,7 @@ export class FpsCamera {
 
     const forwardAxis = (input.forward ? 1 : 0) - (input.back ? 1 : 0);
     const rightAxis = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-    const speed = this.options.moveSpeed * this.sprintFactor;
+    const speed = this.options.moveSpeed * this.sprintFactor * this.speedMultiplier;
     const forward = this.forward;
     const right = this.right;
 

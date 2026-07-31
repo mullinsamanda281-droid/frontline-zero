@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import './style.css';
 import { FpsCounter } from './fpsCounter';
+import { GameLoop } from './engine/gameLoop';
+import { GameState, SceneManager } from './engine/sceneManager';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -28,6 +30,9 @@ scene.add(testProp);
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 1));
 
+const sceneManager = new SceneManager();
+sceneManager.goTo(GameState.Loading);
+
 const fpsCounter = new FpsCounter(document.getElementById('fps-counter') as HTMLElement);
 
 function resize(): void {
@@ -39,8 +44,19 @@ function resize(): void {
 window.addEventListener('resize', resize);
 resize();
 
-renderer.setAnimationLoop(() => {
-  testProp.rotation.y += 0.01;
-  renderer.render(scene, camera);
-  fpsCounter.tick();
+const gameLoop = new GameLoop({
+  update: () => {
+    testProp.rotation.y += 0.01;
+  },
+  render: () => {
+    renderer.render(scene, camera);
+    fpsCounter.tick();
+  },
 });
+gameLoop.start();
+
+renderer.setAnimationLoop((time) => {
+  gameLoop.tick(time);
+});
+
+sceneManager.goTo(GameState.Match);

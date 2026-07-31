@@ -6,8 +6,11 @@ import { GameState, SceneManager } from './engine/sceneManager';
 import { Keyboard } from './engine/input/keyboard';
 import { MouseLook, PointerLock } from './engine/input/mouseLook';
 import { FpsCamera } from './engine/camera/fpsCamera';
+import { SlideController } from './engine/movement/slide';
+import { LeanController } from './engine/movement/lean';
+import { DiveController } from './engine/movement/dive';
+import { BunnyHopController } from './engine/movement/bunnyHop';
 
-const EYE_HEIGHT = 1.6;
 const MOUSE_SENSITIVITY = 0.002;
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -57,6 +60,11 @@ const player = new FpsCamera({
 });
 player.position.y = 0;
 
+const slide = new SlideController({});
+const lean = new LeanController({});
+const dive = new DiveController({});
+const bunnyHop = new BunnyHopController({});
+
 const fpsCounter = new FpsCounter(document.getElementById('fps-counter') as HTMLElement);
 
 function resize(): void {
@@ -73,6 +81,8 @@ const gameLoop = new GameLoop({
     testProp.rotation.y += 0.01;
     const { dx, dy } = mouse.consume();
     if (dx !== 0 || dy !== 0) player.look(dx, dy, MOUSE_SENSITIVITY);
+    const crouchHeld = keyboard.isDown('KeyC');
+    const diveHeld = keyboard.isDown('KeyZ') && slide.phase !== 'sliding';
     player.update(1 / 60, {
       forward: keyboard.isDown('KeyW'),
       back: keyboard.isDown('KeyS'),
@@ -81,9 +91,18 @@ const gameLoop = new GameLoop({
       jump: keyboard.isDown('Space'),
       sprint: keyboard.isDown('ShiftLeft'),
     });
+    slide.update(1 / 60, player, crouchHeld);
+    bunnyHop.update(16.67, player, keyboard.isDown('Space'));
+    lean.update(1 / 60, player, keyboard.isDown('KeyQ'), keyboard.isDown('KeyE'));
+    dive.update(1 / 60, player, diveHeld, keyboard.isDown('KeyZ'));
   },
   render: () => {
-    camera.position.set(player.position.x, player.position.y + EYE_HEIGHT, player.position.z);
+    const right = player.right;
+    camera.position.set(
+      player.position.x + right.x * lean.offset,
+      player.position.y + player.eyeHeight + lean.heightOffset,
+      player.position.z + right.z * lean.offset,
+    );
     camera.rotation.order = 'YXZ';
     camera.rotation.y = player.yaw;
     camera.rotation.x = player.pitch;

@@ -41,7 +41,7 @@ body {
 
 #stamina-bar {
   position: absolute;
-  bottom: 24px;
+  bottom: 56px;
   left: 50%;
   transform: translateX(-50%);
   width: 260px;
@@ -56,4 +56,161 @@ body {
   height: 100%;
   background: #58c28b;
   transition: width 0.1s linear;
+}
+
+#crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+  color: rgba(232, 238, 247, 0.85);
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+}
+
+#hitmarker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  opacity: 0;
+}
+
+#hitmarker::before,
+#hitmarker::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #ff4b4b;
+}
+
+#hitmarker::before {
+  clip-path: polygon(0 45%, 45% 45%, 45% 0, 55% 0, 55% 45%, 100% 45%, 100% 55%, 55% 55%, 55% 100%, 45% 100%, 45% 55%, 0 55%);
+}
+
+#hitmarker.show {
+  animation: hitmarker-fade 0.15s ease-out;
+}
+
+@keyframes hitmarker-fade {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+#bottom-left {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  background: rgba(10, 16, 28, 0.7);
+  border-radius: 6px;
+  padding: 10px 14px;
+  min-width: 200px;
+}
+
+#health-bar {
+  height: 8px;
+  background: rgba(232, 238, 247, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+#health-fill {
+  width: 100%;
+  height: 100%;
+  background: #4ecb71;
+  transition: width 0.15s linear;
+}
+
+#weapon-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+#ammo-count {
+  font-size: 13px;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+#score {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  padding: 4px 10px;
+  background: rgba(10, 16, 28, 0.7);
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 12, 22, 0.92);
+  z-index: 10;
+  text-align: center;
+}
+
+#overlay.hidden {
+  display: none;
+}
+
+#overlay h1 {
+  margin: 0 0 4px;
+  font-size: 44px;
+  letter-spacing: 6px;
+}
+
+#overlay p {
+  margin: 0 0 28px;
+  opacity: 0.7;
+  letter-spacing: 3px;
+  font-size: 13px;
+}
+
+#controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 40px;
+  text-align: left;
+  font-size: 14px;
+  margin-bottom: 32px;
+}
+
+#controls span {
+  display: inline-block;
+  min-width: 64px;
+  font-weight: 700;
+  color: #7fd1ff;
+}
+
+#start {
+  padding: 14px 44px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  background: #1d5c8f;
+  color: #e8eef7;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#start:hover {
+  background: #2a74b2;
 }

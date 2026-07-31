@@ -16,7 +16,6 @@ import { WEAPONS } from './engine/weapons/weapons';
 import { type Damageable } from './engine/weapons/hitscan';
 
 const MOUSE_SENSITIVITY = 0.002;
-const PLAYER_MAX_HEALTH = 100;
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -109,7 +108,6 @@ const ammoEl = document.getElementById('ammo-count') as HTMLElement;
 const scoreEl = document.getElementById('score') as HTMLElement;
 const hitmarkerEl = document.getElementById('hitmarker') as HTMLElement;
 const healthFill = document.getElementById('health-fill') as HTMLElement;
-let health = PLAYER_MAX_HEALTH;
 let targetsDown = 0;
 
 class TestTarget implements Damageable {

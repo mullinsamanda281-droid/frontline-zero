@@ -5,6 +5,13 @@ export class Vec3 {
     public z = 0,
   ) {}
 
+  set(x: number, y: number, z: number): this {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+    return this;
+  }
+
   clone(): Vec3 {
     return new Vec3(this.x, this.y, this.z);
   }

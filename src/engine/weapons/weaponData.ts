@@ -25,6 +25,11 @@ export interface WeaponData {
   range: number;
   falloffStart: number;
   falloffEnd: number;
+  semiAuto?: boolean;
+  headshotMultiplier?: number;
+  switchTime?: number;
+  moveSpeedMultiplier?: number;
+  scopeZoom?: number;
 }
 
 export function resolveFalloffDamage(data: WeaponData, distance: number): number {

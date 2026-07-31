@@ -20,8 +20,10 @@ export class WeaponRuntime {
   reserve: number;
   bloom = 0;
   reloading = false;
+  drawing = false;
   private fireTimer = 0;
   private reloadTimer = 0;
+  private drawTimer = 0;
 
   constructor(readonly data: WeaponData) {
     this.ammo = data.magSize;
@@ -29,15 +31,31 @@ export class WeaponRuntime {
   }
 
   get canFire(): boolean {
-    return this.fireTimer <= 0 && this.ammo > 0 && !this.reloading;
+    return this.fireTimer <= 0 && this.ammo > 0 && !this.reloading && !this.drawing;
   }
 
   get reloadProgress(): number {
     return this.data.reloadTime === 0 ? 1 : 1 - this.reloadTimer / this.data.reloadTime;
   }
 
+  get drawProgress(): number {
+    const t = this.data.switchTime ?? 0.5;
+    return t === 0 ? 1 : 1 - this.drawTimer / t;
+  }
+
+  draw(): void {
+    this.cancelReload();
+    this.drawing = true;
+    this.drawTimer = this.data.switchTime ?? 0.5;
+  }
+
   update(dt: number, input: WeaponUpdateInput): void {
     this.fireTimer = Math.max(0, this.fireTimer - dt);
+
+    if (this.drawing) {
+      this.drawTimer -= dt;
+      if (this.drawTimer <= 0) this.drawing = false;
+    }
 
     if (this.reloading) {
       this.reloadTimer -= dt;

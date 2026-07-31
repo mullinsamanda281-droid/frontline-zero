@@ -214,3 +214,44 @@ body {
 #start:hover {
   background: #2a74b2;
 }
+
+#scope-overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+}
+
+#scope-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 34vmin;
+  height: 34vmin;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(20, 24, 32, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 0 100vmax rgba(8, 12, 18, 0.96);
+}
+
+#scope-cross-h {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(20, 24, 32, 0.9);
+}
+
+#scope-cross-v {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(20, 24, 32, 0.9);
+}
+
+#crosshair.ads-hidden {
+  display: none;
+}

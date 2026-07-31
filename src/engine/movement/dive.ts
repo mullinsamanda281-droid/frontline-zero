@@ -63,9 +63,8 @@ export class DiveController {
       case 'diving':
         camera.speedMultiplier = 1;
         if (camera.onGround) {
-          this.setPhase(proneHeld ? 'prone' : 'recovering');
           this.recoveryTimer = this.options.recoveryTime;
-          if (this.phase !== 'prone') camera.speedMultiplier = 1;
+          this.setPhase(proneHeld ? 'prone' : 'recovering');
         }
         break;
 

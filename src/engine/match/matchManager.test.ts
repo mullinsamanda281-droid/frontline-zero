@@ -92,9 +92,14 @@ describe('selectSpawnPoint', () => {
   });
 
   it('randomizes among equally farthest candidates', () => {
+    const tiePoints = [
+      { x: 0, z: 0 },
+      { x: 40, z: 0 },
+      { x: 0, z: 40 },
+    ];
     const spawns = new Set<string>();
     for (let i = 0; i < 20; i++) {
-      const spawn = selectSpawnPoint(points, { x: 0, z: 0 }, () => i % 10 / 10);
+      const spawn = selectSpawnPoint(tiePoints, { x: 0, z: 0 }, () => i % 10 / 10);
       spawns.add(JSON.stringify(spawn));
     }
     expect(spawns.size).toBeGreaterThan(1);

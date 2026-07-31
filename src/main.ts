@@ -49,7 +49,12 @@ canvas.addEventListener('click', () => pointerLock.request());
 const mouse = new MouseLook();
 mouse.attach();
 
-const player = new FpsCamera();
+const player = new FpsCamera({
+  staminaChangeListener: (ratio) => {
+    const fill = document.getElementById('stamina-fill') as HTMLElement;
+    fill.style.width = `${Math.round(ratio * 100)}%`;
+  },
+});
 player.position.y = 0;
 
 const fpsCounter = new FpsCounter(document.getElementById('fps-counter') as HTMLElement);

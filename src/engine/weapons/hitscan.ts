@@ -14,6 +14,7 @@ export interface RayHit {
 export interface RaycastResult {
   target: Damageable | null;
   distance: number;
+  isHeadshot?: boolean;
 }
 
 export interface RaycastQuery {
@@ -57,7 +58,8 @@ export function fireHitscan({ data, origin, direction, raycast, rng }: FireInput
   for (let i = 0; i < data.pelletCount; i++) {
     const dir = spreadDirection(direction, data.spreadMax, rng);
     const result = raycast(origin, dir, data.range);
-    const damage = result.target === null ? 0 : resolveFalloffDamage(data, result.distance);
+    let damage = result.target === null ? 0 : resolveFalloffDamage(data, result.distance);
+    if (result.isHeadshot && data.headshotMultiplier) damage *= data.headshotMultiplier;
     hits.push({ distance: result.distance, damage, target: result.target });
     result.target?.takeDamage(damage);
   }

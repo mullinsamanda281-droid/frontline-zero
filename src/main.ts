@@ -13,6 +13,7 @@ import { DiveController } from './engine/movement/dive';
 import { BunnyHopController } from './engine/movement/bunnyHop';
 import { WeaponRuntime } from './engine/weapons/weapon';
 import { WEAPONS } from './engine/weapons/weapons';
+import { buildWeaponModel, type WeaponModel } from './engine/weapons/models';
 import { type Damageable } from './engine/weapons/hitscan';
 
 const MOUSE_SENSITIVITY = 0.002;
@@ -172,24 +173,55 @@ function raycastTargets(origin: Vec3, direction: Vec3, range: number) {
   return {
     target: targets.find((t) => t.body === hit.object || t.head === hit.object) ?? null,
     distance: hit.distance,
+    isHeadshot: hit.object === targets.find((t) => t.head === hit.object)?.head,
   };
+}
+
+const weaponPivot = new THREE.Group();
+weaponPivot.position.set(0.3, -0.24, -0.55);
+const weaponModels = weaponOrder.map((id) => buildWeaponModel(WEAPONS[id].class));
+weaponModels.forEach((model) => weaponPivot.add(model.group));
+modelFor(activeSlot).group.visible = true;
+camera.add(weaponPivot);
+scene.add(camera);
+
+function modelFor(slot: number): WeaponModel {
+  return weaponModels[slot];
 }
 
 function switchWeapon(slot: number): void {
   if (slot === activeSlot) return;
+  modelFor(activeSlot).group.visible = false;
   activeSlot = slot;
   weapon = weaponSlots[slot];
+  weapon.draw();
+  modelFor(activeSlot).group.visible = true;
   weaponNameEl.textContent = weapon.data.name;
 }
 
 const fpsCounter = new FpsCounter(document.getElementById('fps-counter') as HTMLElement);
+const crosshairEl = document.getElementById('crosshair') as HTMLElement;
 
 let triggerHeld = false;
+let triggerPressed = false;
+let adsHeld = false;
 window.addEventListener('mousedown', (event) => {
-  if (event.button === 0 && pointerLock.isLocked) triggerHeld = true;
+  if (!pointerLock.isLocked) return;
+  if (event.button === 0) {
+    triggerHeld = true;
+    triggerPressed = true;
+  }
+  if (event.button === 2) adsHeld = true;
 });
 window.addEventListener('mouseup', (event) => {
   if (event.button === 0) triggerHeld = false;
+  if (event.button === 2) adsHeld = false;
+});
+window.addEventListener('contextmenu', (event) => event.preventDefault());
+window.addEventListener('wheel', (event) => {
+  if (!pointerLock.isLocked) return;
+  const delta = event.deltaY > 0 ? 1 : -1;
+  switchWeapon((activeSlot + delta + weaponOrder.length) % weaponOrder.length);
 });
 window.addEventListener('keydown', (event) => {
   if (event.code === 'KeyR') weapon.reload();
@@ -214,6 +246,27 @@ function resize(): void {
 window.addEventListener('resize', resize);
 resize();
 
+const BASE_FOV = 75;
+let currentFov = BASE_FOV;
+let targetFov = BASE_FOV;
+const scopeOverlay = document.getElementById('scope-overlay') as HTMLElement;
+
+function applyAds(): void {
+  const adsZoom = weapon.data.scopeZoom ?? 1.3;
+  targetFov = adsHeld && !weapon.drawing ? BASE_FOV / adsZoom : BASE_FOV;
+  currentFov += (targetFov - currentFov) * Math.min(1, 10 / 60);
+  camera.fov = currentFov;
+  camera.updateProjectionMatrix();
+  const scoped = adsHeld && (weapon.data.scopeZoom ?? 0) > 1;
+  scopeOverlay.style.display = scoped ? 'block' : 'none';
+  crosshairEl.classList.toggle('ads-hidden', scoped);
+  player.speedMultiplier = adsHeld ? (weapon.data.moveSpeedMultiplier ?? 1) : 1;
+  weaponPivot.position.lerp(
+    new THREE.Vector3(adsHeld ? 0 : 0.3, adsHeld ? -0.16 : -0.24, adsHeld ? -0.5 : -0.55),
+    Math.min(1, 12 / 60),
+  );
+}
+
 const gameLoop = new GameLoop({
   update: () => {
     const { dx, dy } = mouse.consume();
@@ -234,8 +287,14 @@ const gameLoop = new GameLoop({
     dive.update(1 / 60, player, diveHeld, keyboard.isDown('KeyZ'));
 
     const horizontalSpeed = Math.hypot(player.velocity.x, player.velocity.z);
+    const ads = adsHeld && !weapon.drawing;
+    player.speedMultiplier = ads ? (weapon.data.moveSpeedMultiplier ?? 1) : 1;
     weapon.update(1 / 60, { moving: horizontalSpeed > 0.1, triggerHeld });
-    if (triggerHeld && weapon.canFire) {
+    applyAds();
+
+    const wantsFire = weapon.data.semiAuto ? triggerPressed : triggerHeld;
+    triggerPressed = false;
+    if (wantsFire && weapon.canFire) {
       const yaw = player.yaw;
       const pitch = player.pitch;
       const eye = new Vec3(
@@ -254,6 +313,11 @@ const gameLoop = new GameLoop({
         void hitmarkerEl.offsetWidth;
         hitmarkerEl.classList.add('show');
       }
+      const model = modelFor(activeSlot);
+      model.flash.visible = true;
+      setTimeout(() => {
+        model.flash.visible = false;
+      }, 40);
       player.look(-weapon.recoil.yawOffset, -weapon.recoil.pitchOffset, 1);
     }
 
@@ -281,4 +345,5 @@ renderer.setAnimationLoop((time) => {
 
 weaponNameEl.textContent = weapon.data.name;
 healthFill.style.width = '100%';
+weapon.draw();
 sceneManager.goTo(GameState.Match);

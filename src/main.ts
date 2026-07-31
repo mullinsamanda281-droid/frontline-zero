@@ -3,6 +3,12 @@ import './style.css';
 import { FpsCounter } from './fpsCounter';
 import { GameLoop } from './engine/gameLoop';
 import { GameState, SceneManager } from './engine/sceneManager';
+import { Keyboard } from './engine/input/keyboard';
+import { MouseLook, PointerLock } from './engine/input/mouseLook';
+import { FpsCamera } from './engine/camera/fpsCamera';
+
+const EYE_HEIGHT = 1.6;
+const MOUSE_SENSITIVITY = 0.002;
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -33,6 +39,19 @@ scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 1));
 const sceneManager = new SceneManager();
 sceneManager.goTo(GameState.Loading);
 
+const keyboard = new Keyboard();
+keyboard.attach();
+
+const pointerLock = new PointerLock(canvas);
+pointerLock.attach();
+canvas.addEventListener('click', () => pointerLock.request());
+
+const mouse = new MouseLook();
+mouse.attach();
+
+const player = new FpsCamera();
+player.position.y = 0;
+
 const fpsCounter = new FpsCounter(document.getElementById('fps-counter') as HTMLElement);
 
 function resize(): void {
@@ -47,8 +66,22 @@ resize();
 const gameLoop = new GameLoop({
   update: () => {
     testProp.rotation.y += 0.01;
+    const { dx, dy } = mouse.consume();
+    if (dx !== 0 || dy !== 0) player.look(dx, dy, MOUSE_SENSITIVITY);
+    player.update(1 / 60, {
+      forward: keyboard.isDown('KeyW'),
+      back: keyboard.isDown('KeyS'),
+      left: keyboard.isDown('KeyA'),
+      right: keyboard.isDown('KeyD'),
+      jump: keyboard.isDown('Space'),
+      sprint: keyboard.isDown('ShiftLeft'),
+    });
   },
   render: () => {
+    camera.position.set(player.position.x, player.position.y + EYE_HEIGHT, player.position.z);
+    camera.rotation.order = 'YXZ';
+    camera.rotation.y = player.yaw;
+    camera.rotation.x = player.pitch;
     renderer.render(scene, camera);
     fpsCounter.tick();
   },

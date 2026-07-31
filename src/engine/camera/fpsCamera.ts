@@ -43,6 +43,7 @@ export class FpsCamera {
   yaw = 0;
   pitch = 0;
   onGround = true;
+  justLanded = false;
   sprintFactor = 1;
   readonly stamina: Stamina;
   private readonly options: ResolvedOptions;
@@ -80,6 +81,7 @@ export class FpsCamera {
   }
 
   update(dt: number, input: FpsInputState): void {
+    this.justLanded = false;
     const wantsSprint = input.sprint && (!this.options.enforceStamina || !this.stamina.isExhausted);
     const targetFactor = wantsSprint ? this.options.sprintMultiplier : 1;
     const blend = Math.min(1, this.options.sprintAcceleration * dt);
@@ -115,6 +117,7 @@ export class FpsCamera {
     if (this.position.y <= 0) {
       this.position.y = 0;
       this.velocity.y = 0;
+      if (!this.onGround) this.justLanded = true;
       this.onGround = true;
     }
   }

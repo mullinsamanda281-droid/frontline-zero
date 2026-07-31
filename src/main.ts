@@ -7,6 +7,7 @@ import { Keyboard } from './engine/input/keyboard';
 import { MouseLook, PointerLock } from './engine/input/mouseLook';
 import { FpsCamera } from './engine/camera/fpsCamera';
 import { Vec3 } from './engine/camera/vec3';
+import { CollisionWorld, makeAABB } from './engine/world/collision';
 import { SlideController } from './engine/movement/slide';
 import { LeanController } from './engine/movement/lean';
 import { DiveController } from './engine/movement/dive';
@@ -59,6 +60,10 @@ for (const p of placements) {
   scene.add(mesh);
 }
 
+const collisionWorld = new CollisionWorld(
+  placements.map((p) => makeAABB(p.x, p.h / 2, p.z, p.w, p.h, p.d)),
+);
+
 scene.add(new THREE.HemisphereLight(0xffffff, 0x44606e, 1));
 const sun = new THREE.DirectionalLight(0xffffff, 1.2);
 sun.position.set(30, 50, 20);
@@ -87,6 +92,7 @@ const mouse = new MouseLook();
 mouse.attach();
 
 const player = new FpsCamera({
+  jumpSpeed: 6.2,
   staminaChangeListener: (ratio) => {
     const fill = document.getElementById('stamina-fill') as HTMLElement;
     fill.style.width = `${Math.round(ratio * 100)}%`;
@@ -161,6 +167,7 @@ const targets: TestTarget[] = [
 const targetMeshes = targets.flatMap((t) => [t.body, t.head]);
 
 function raycastTargets(origin: Vec3, direction: Vec3, range: number) {
+  const worldDist = collisionWorld.raycast(origin, direction, range);
   const raycaster = new THREE.Raycaster();
   raycaster.far = range;
   raycaster.set(
@@ -168,13 +175,23 @@ function raycastTargets(origin: Vec3, direction: Vec3, range: number) {
     new THREE.Vector3(direction.x, direction.y, direction.z),
   );
   const hits = raycaster.intersectObjects(targetMeshes, false);
-  if (hits.length === 0) return { target: null, distance: range };
-  const hit = hits[0];
-  return {
-    target: targets.find((t) => t.body === hit.object || t.head === hit.object) ?? null,
-    distance: hit.distance,
-    isHeadshot: hit.object === targets.find((t) => t.head === hit.object)?.head,
+  let targetHit: { target: TestTarget | null; distance: number; isHeadshot: boolean } = {
+    target: null,
+    distance: range,
+    isHeadshot: false,
   };
+  if (hits.length > 0) {
+    const hit = hits[0];
+    targetHit = {
+      target: targets.find((t) => t.body === hit.object || t.head === hit.object) ?? null,
+      distance: hit.distance,
+      isHeadshot: hit.object === targets.find((t) => t.head === hit.object)?.head,
+    };
+  }
+  if (worldDist !== null && (targetHit.target === null || worldDist < targetHit.distance)) {
+    return { target: null, distance: worldDist };
+  }
+  return targetHit;
 }
 
 const weaponPivot = new THREE.Group();
@@ -281,6 +298,8 @@ const gameLoop = new GameLoop({
       jump: keyboard.isDown('Space'),
       sprint: keyboard.isDown('ShiftLeft'),
     });
+    const collision = collisionWorld.resolveCapsule(player.position, 0.35, 1.8);
+    player.floorY = collision.floorY;
     slide.update(1 / 60, player, crouchHeld);
     bunnyHop.update(16.67, player, keyboard.isDown('Space'));
     lean.update(1 / 60, player, keyboard.isDown('KeyQ'), keyboard.isDown('KeyE'));

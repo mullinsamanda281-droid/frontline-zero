@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameLoop } from './gameLoop';
 
-function runLoop(dtMs: number, totalMs: number): { updates: number; alphas: number[] } {
+function runLoop(dtMs: number, totalMs: number): { updates: number[]; alphas: number[] } {
   const updates: number[] = [];
   const alphas: number[] = [];
   const loop = new GameLoop({

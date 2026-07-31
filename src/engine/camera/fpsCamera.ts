@@ -47,6 +47,7 @@ export class FpsCamera {
   sprintFactor = 1;
   eyeHeight = 1.6;
   speedMultiplier = 1;
+  floorY = 0;
   readonly stamina: Stamina;
   private readonly options: ResolvedOptions;
 
@@ -116,8 +117,8 @@ export class FpsCamera {
     this.position.y += this.velocity.y * dt;
     this.position.z += this.velocity.z * dt;
 
-    if (this.position.y <= 0) {
-      this.position.y = 0;
+    if (this.position.y <= this.floorY) {
+      this.position.y = this.floorY;
       this.velocity.y = 0;
       if (!this.onGround) this.justLanded = true;
       this.onGround = true;

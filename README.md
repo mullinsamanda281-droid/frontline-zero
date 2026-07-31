@@ -245,3 +245,43 @@ Many low-poly shooters focus on either arcade chaos or realism. A game that comb
 ## Backlog
 
 The development backlog lives in the Issues tab, organized by priority (P0 = vertical slice, P1 = core expansion, P2 = end-game systems) and complexity (S/M/L). See AGENTS.md for build and test instructions.
+
+---
+
+## Playable Test (current milestone)
+
+Status: **PLAYABLE** — run it and shoot targets.
+
+```bash
+npm install
+npm run dev
+```
+
+Open the printed URL (default http://localhost:5173), click **CLICK TO DEPLOY**, and play.
+
+### Controls
+
+| Key | Action |
+| --- | --- |
+| WASD | Move |
+| Mouse | Look |
+| LMB | Fire (hold for automatic) |
+| R | Reload |
+| 1-6 | Switch weapon (AR/SMG/Marksman/Sniper/Shotgun/Sidearm) |
+| Shift | Sprint (drains stamina) |
+| Space | Jump — land while holding to bunny-hop |
+| C | Slide (while sprinting) |
+| Q / E | Lean left / right |
+| Z | Dive-to-prone (while sprinting) |
+
+### Automated smoke test
+
+```bash
+npm run test:smoke
+```
+
+Headless Chromium (Playwright) deploys the game, sprints, fires, reloads, switches
+weapons, and asserts the scene renders with zero console errors. Requires
+`npx playwright install chromium` once.
+
+---

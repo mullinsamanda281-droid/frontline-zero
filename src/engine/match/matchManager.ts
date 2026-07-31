@@ -105,5 +105,6 @@ export function selectSpawnPoint(
   const candidates = points.filter(
     (p) => Math.hypot(p.x - awayFrom.x, p.z - awayFrom.z) >= bestDist - 1e-6,
   );
-  return candidates[Math.floor(rng() * candidates.length)] ?? best;
+  const pick = rng();
+  return candidates[Math.min(candidates.length - 1, Math.floor(pick * candidates.length))] ?? best;
 }

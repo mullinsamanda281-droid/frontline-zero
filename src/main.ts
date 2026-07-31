@@ -8,6 +8,7 @@ import { MouseLook, PointerLock } from './engine/input/mouseLook';
 import { FpsCamera } from './engine/camera/fpsCamera';
 import { Vec3 } from './engine/camera/vec3';
 import { CollisionWorld, makeAABB } from './engine/world/collision';
+import { MatchManager } from './engine/match/matchManager';
 import { SlideController } from './engine/movement/slide';
 import { LeanController } from './engine/movement/lean';
 import { DiveController } from './engine/movement/dive';
@@ -169,6 +170,7 @@ class TestTarget implements Damageable {
       this.hp = 100;
       targetsDown++;
       scoreEl.textContent = `TARGETS DOWN: ${targetsDown}`;
+      match.kill('alpha', 'player', `target-${this.body.position.x.toFixed(0)}`);
       this.respawn();
     }
   }
@@ -203,6 +205,34 @@ const targets: TestTarget[] = [
   new TestTarget(-30, 26),
 ];
 const targetMeshes = targets.flatMap((t) => [t.body, t.head]);
+
+const match = new MatchManager(
+  { warmupSeconds: 3, matchSeconds: 300, scoreLimit: 30 },
+  (phase, winner) => {
+    if (phase === 'matchEnd') {
+      matchEndEl.classList.remove('hidden');
+      matchEndTitle.textContent = winner === 'alpha' ? 'VICTORY' : winner === 'bravo' ? 'DEFEAT' : 'DRAW';
+      matchEndDetail.textContent = `${match.alphaScore} - ${match.bravoScore}`;
+    }
+  },
+);
+match.start();
+match.joinPlayer('player');
+
+const matchEndEl = document.getElementById('match-end') as HTMLElement;
+const matchEndTitle = document.getElementById('match-end-title') as HTMLElement;
+const matchEndDetail = document.getElementById('match-end-detail') as HTMLElement;
+const scoreboardTimerEl = document.getElementById('scoreboard-timer') as HTMLElement;
+const teamAlphaEl = document.getElementById('team-alpha') as HTMLElement;
+const teamBravoEl = document.getElementById('team-bravo') as HTMLElement;
+document.getElementById('restart')?.addEventListener('click', () => window.location.reload());
+
+function formatTime(seconds: number): string {
+  const total = Math.max(0, Math.ceil(seconds));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 function raycastTargets(origin: Vec3, direction: Vec3, range: number) {
   const worldDist = collisionWorld.raycast(origin, direction, range);
@@ -338,6 +368,10 @@ const gameLoop = new GameLoop({
     });
     const collision = collisionWorld.resolveCapsule(player.position, 0.35, 1.8);
     player.floorY = collision.floorY;
+    match.update(1 / 60);
+    scoreboardTimerEl.textContent = formatTime(match.timeRemaining);
+    teamAlphaEl.textContent = `ALPHA ${match.alphaScore}`;
+    teamBravoEl.textContent = `${match.bravoScore} BRAVO`;
     slide.update(1 / 60, player, crouchHeld);
     bunnyHop.update(16.67, player, keyboard.isDown('Space'));
     lean.update(1 / 60, player, keyboard.isDown('KeyQ'), keyboard.isDown('KeyE'));

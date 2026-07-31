@@ -74,11 +74,42 @@ describe('FpsCamera.update movement', () => {
   });
 
   it('applies the sprint multiplier', () => {
-    const walk = new FpsCamera({ moveSpeed: 10 });
+    const walk = new FpsCamera({ moveSpeed: 10, enforceStamina: false });
     walk.update(0.5, input({ forward: true }));
-    const sprint = new FpsCamera({ moveSpeed: 10 });
+    const sprint = new FpsCamera({ moveSpeed: 10, enforceStamina: false });
     sprint.update(0.5, input({ forward: true, sprint: true }));
     expect(sprint.position.z).toBeCloseTo(walk.position.z * 1.7, 6);
+  });
+
+  it('accelerates to sprint speed within about a quarter second', () => {
+    const camera = new FpsCamera({ sprintAcceleration: 8, enforceStamina: false });
+    for (let i = 0; i < 15; i++) camera.update(1 / 60, input({ sprint: true }));
+    expect(camera.sprintFactor).toBeGreaterThan(0.85);
+  });
+
+  it('decays back to walk speed after sprinting', () => {
+    const camera = new FpsCamera({ enforceStamina: false });
+    for (let i = 0; i < 30; i++) camera.update(1 / 60, input({ sprint: true }));
+    for (let i = 0; i < 120; i++) camera.update(1 / 60, IDLE);
+    expect(camera.sprintFactor).toBeLessThan(1.01);
+  });
+
+  it('drains stamina while sprinting and regenerates when idle', () => {
+    const camera = new FpsCamera({ staminaDrainPerSec: 1, staminaRegenPerSec: 0.5 });
+    for (let i = 0; i < 60; i++) camera.update(1 / 60, input({ sprint: true }));
+    const afterSprint = camera.stamina.ratio;
+    expect(afterSprint).toBeLessThan(1);
+    camera.sprintFactor = 1;
+    for (let i = 0; i < 60; i++) camera.update(1 / 60, IDLE);
+    expect(camera.stamina.ratio - afterSprint).toBeCloseTo(0.5, 1);
+  });
+
+  it('blocks sprinting when stamina is exhausted', () => {
+    const camera = new FpsCamera({ staminaDrainPerSec: 100, staminaRegenPerSec: 0, sprintAcceleration: 8 });
+    for (let i = 0; i < 60; i++) camera.update(1 / 60, input({ sprint: true }));
+    expect(camera.stamina.isExhausted).toBe(true);
+    for (let i = 0; i < 60; i++) camera.update(1 / 60, input({ sprint: true }));
+    expect(camera.sprintFactor).toBeLessThanOrEqual(1.01);
   });
 
   it('jumps, rises, falls, and lands back on the ground', () => {

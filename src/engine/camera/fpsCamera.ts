@@ -1,14 +1,5 @@
-export class Vec3 {
-  constructor(
-    public x = 0,
-    public y = 0,
-    public z = 0,
-  ) {}
-
-  clone(): Vec3 {
-    return new Vec3(this.x, this.y, this.z);
-  }
-}
+import { Stamina } from '../movement/stamina';
+import { Vec3 } from './vec3';
 
 export interface FpsInputState {
   forward: boolean;
@@ -25,6 +16,11 @@ export interface FpsCameraOptions {
   jumpSpeed?: number;
   gravity?: number;
   pitchLimit?: number;
+  sprintAcceleration?: number;
+  staminaDrainPerSec?: number;
+  staminaRegenPerSec?: number;
+  enforceStamina?: boolean;
+  staminaChangeListener?: (ratio: number) => void;
 }
 
 interface ResolvedOptions {
@@ -33,6 +29,8 @@ interface ResolvedOptions {
   jumpSpeed: number;
   gravity: number;
   pitchLimit: number;
+  sprintAcceleration: number;
+  enforceStamina: boolean;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -45,6 +43,8 @@ export class FpsCamera {
   yaw = 0;
   pitch = 0;
   onGround = true;
+  sprintFactor = 1;
+  readonly stamina: Stamina;
   private readonly options: ResolvedOptions;
 
   constructor(options: FpsCameraOptions = {}) {
@@ -54,8 +54,15 @@ export class FpsCamera {
       jumpSpeed: 5,
       gravity: 15,
       pitchLimit: 89,
+      sprintAcceleration: 8,
+      enforceStamina: true,
       ...options,
     };
+    this.stamina = new Stamina(
+      options.staminaDrainPerSec ?? 0.45,
+      options.staminaRegenPerSec ?? 0.6,
+      options.staminaChangeListener,
+    );
   }
 
   look(dx: number, dy: number, sensitivity = 0.002): void {
@@ -73,9 +80,15 @@ export class FpsCamera {
   }
 
   update(dt: number, input: FpsInputState): void {
+    const wantsSprint = input.sprint && (!this.options.enforceStamina || !this.stamina.isExhausted);
+    const targetFactor = wantsSprint ? this.options.sprintMultiplier : 1;
+    const blend = Math.min(1, this.options.sprintAcceleration * dt);
+    this.sprintFactor += (targetFactor - this.sprintFactor) * blend;
+    this.stamina.update(dt, this.sprintFactor > 1.01);
+
     const forwardAxis = (input.forward ? 1 : 0) - (input.back ? 1 : 0);
     const rightAxis = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-    const speed = this.options.moveSpeed * (input.sprint ? this.options.sprintMultiplier : 1);
+    const speed = this.options.moveSpeed * this.sprintFactor;
     const forward = this.forward;
     const right = this.right;
 

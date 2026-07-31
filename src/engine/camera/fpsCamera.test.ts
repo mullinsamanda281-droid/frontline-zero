@@ -99,6 +99,7 @@ describe('FpsCamera.update movement', () => {
     for (let i = 0; i < 60; i++) camera.update(1 / 60, input({ sprint: true }));
     const afterSprint = camera.stamina.ratio;
     expect(afterSprint).toBeLessThan(1);
+    camera.sprintFactor = 1;
     for (let i = 0; i < 60; i++) camera.update(1 / 60, IDLE);
     expect(camera.stamina.ratio - afterSprint).toBeCloseTo(0.5, 1);
   });

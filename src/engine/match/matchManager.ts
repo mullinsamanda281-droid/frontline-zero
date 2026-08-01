@@ -1,6 +1,18 @@
 export type GameMode = 'tdm' | 'ffa' | 'coop';
 export type MatchPhase = 'warmup' | 'playing' | 'matchEnd';
 
+export type MatchEvent =
+  | { kind: 'round_start'; tick: number }
+  | { kind: 'round_end'; winner: 'alpha' | 'bravo' | null; tick: number }
+  | { kind: 'kill'; killer: string; victim: string; team: 'alpha' | 'bravo'; tick: number }
+  | { kind: 'damage'; victim: string; amount: number; shooter: string; tick: number }
+  | { kind: 'player_join'; playerId: string; tick: number }
+  | { kind: 'player_leave'; playerId: string; tick: number }
+  | { kind: 'wave_start'; wave: number; tick: number }
+  | { kind: 'match_start'; tick: number };
+
+export type MatchEventListener = (event: MatchEvent) => void;
+
 export interface MatchOptions {
   warmupSeconds?: number;
   matchSeconds?: number;
@@ -32,6 +44,7 @@ export class MatchManager {
   readonly players = new Map<string, PlayerStats>();
   private readonly options: ResolvedMatchOptions;
   private onPhaseChange: (phase: MatchPhase, winner: 'alpha' | 'bravo' | null) => void;
+  private eventListeners: MatchEventListener[] = [];
 
   constructor(options: MatchOptions = {}, onPhaseChange: (phase: MatchPhase, winner: 'alpha' | 'bravo' | null) => void = () => {}) {
     this.options = {
@@ -43,6 +56,16 @@ export class MatchManager {
     };
     this.onPhaseChange = onPhaseChange;
   }
+
+  onEvent(listener: MatchEventListener): () => void {
+    this.eventListeners.push(listener);
+    return () => {
+      const idx = this.eventListeners.indexOf(listener);
+      if (idx >= 0) this.eventListeners.splice(idx, 1);
+    };
+  }
+
+
 
   start(): void {
     this.phase = 'warmup';

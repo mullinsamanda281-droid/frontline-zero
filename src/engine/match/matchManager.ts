@@ -1,15 +1,18 @@
+export type GameMode = 'tdm' | 'ffa' | 'coop';
 export type MatchPhase = 'warmup' | 'playing' | 'matchEnd';
 
 export interface MatchOptions {
   warmupSeconds?: number;
   matchSeconds?: number;
   scoreLimit?: number;
+  mode?: GameMode;
 }
 
 interface ResolvedMatchOptions {
   warmupSeconds: number;
   matchSeconds: number;
   scoreLimit: number;
+  mode: GameMode;
 }
 
 export interface PlayerStats {
@@ -21,6 +24,9 @@ export class MatchManager {
   phase: MatchPhase = 'warmup';
   alphaScore = 0;
   bravoScore = 0;
+  ffaScore: number = 0;
+  coopWave: number = 0;
+  mode: GameMode = 'tdm';
   timeRemaining = 0;
   winner: 'alpha' | 'bravo' | null = null;
   readonly players = new Map<string, PlayerStats>();
@@ -32,6 +38,7 @@ export class MatchManager {
       warmupSeconds: 10,
       matchSeconds: 300,
       scoreLimit: 50,
+      mode: 'tdm',
       ...options,
     };
     this.onPhaseChange = onPhaseChange;

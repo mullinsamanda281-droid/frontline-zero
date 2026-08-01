@@ -1,4 +1,30 @@
 export type GameMode = 'tdm' | 'ffa' | 'coop';
+
+export interface PlayerProgression {
+  xp: number;
+  level: number;
+  kills: number;
+  deaths: number;
+  matchesPlayed: number;
+  wins: number;
+}
+
+const XP_PER_KILL = 100;
+const XP_PER_WIN = 500;
+const XP_PER_MATCH = 50;
+const XP_PER_LEVEL = 500;
+
+export function xpForLevel(level: number): number {
+  return level * XP_PER_LEVEL;
+}
+
+export function addXp(progression: PlayerProgression, amount: number): void {
+  progression.xp += amount;
+  while (progression.xp >= xpForLevel(progression.level)) {
+    progression.xp -= xpForLevel(progression.level);
+    progression.level++;
+  }
+}
 export type MatchPhase = 'warmup' | 'playing' | 'matchEnd';
 
 export type MatchEvent =
@@ -39,6 +65,7 @@ export class MatchManager {
   ffaScore: number = 0;
   coopWave: number = 0;
   mode: GameMode = 'tdm';
+  readonly progression = new Map<string, PlayerProgression>();
   timeRemaining = 0;
   winner: 'alpha' | 'bravo' | null = null;
   readonly players = new Map<string, PlayerStats>();
@@ -92,10 +119,16 @@ export class MatchManager {
     if (killerId) {
       const stats = this.players.get(killerId);
       if (stats) stats.kills++;
+      const prog = this.progression.get(killerId) ?? { xp: 0, level: 1, kills: 0, deaths: 0, matchesPlayed: 0, wins: 0 };
+      addXp(prog, XP_PER_KILL);
+      this.progression.set(killerId, prog);
     }
     if (victimId) {
       const stats = this.players.get(victimId);
       if (stats) stats.deaths++;
+      const prog = this.progression.get(victimId) ?? { xp: 0, level: 1, kills: 0, deaths: 0, matchesPlayed: 0, wins: 0 };
+      addXp(prog, 0);
+      this.progression.set(victimId, prog);
     }
     if (this.alphaScore >= this.options.scoreLimit || this.bravoScore >= this.options.scoreLimit) {
       this.endMatch();
@@ -117,6 +150,15 @@ export class MatchManager {
   private endMatch(): void {
     this.phase = 'matchEnd';
     this.winner = this.alphaScore > this.bravoScore ? 'alpha' : this.bravoScore > this.alphaScore ? 'bravo' : null;
+    for (const [id, prog] of this.progression) {
+      prog.matchesPlayed++;
+      if (this.winner === 'alpha' || this.winner === 'bravo') {
+        prog.wins++;
+        addXp(prog, XP_PER_WIN);
+      }
+      addXp(prog, XP_PER_MATCH);
+      this.progression.set(id, prog);
+    }
     this.onPhaseChange('matchEnd', this.winner);
   }
 }

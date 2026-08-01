@@ -9,6 +9,9 @@ export interface RayHit {
   distance: number;
   damage: number;
   target: Damageable | null;
+  hitX: number;
+  hitY: number;
+  hitZ: number;
 }
 
 export interface RaycastResult {
@@ -60,7 +63,14 @@ export function fireHitscan({ data, origin, direction, raycast, rng }: FireInput
     const result = raycast(origin, dir, data.range);
     let damage = result.target === null ? 0 : resolveFalloffDamage(data, result.distance);
     if (result.isHeadshot && data.headshotMultiplier) damage *= data.headshotMultiplier;
-    hits.push({ distance: result.distance, damage, target: result.target });
+    hits.push({
+      distance: result.distance,
+      damage,
+      target: result.target,
+      hitX: origin.x + dir.x * result.distance,
+      hitY: origin.y + dir.y * result.distance,
+      hitZ: origin.z + dir.z * result.distance,
+    });
     result.target?.takeDamage(damage);
   }
   return hits;

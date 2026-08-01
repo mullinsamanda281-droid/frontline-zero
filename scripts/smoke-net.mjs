@@ -17,7 +17,13 @@ server.stderr?.on('data', (d) => console.error('[SERVER ERR]', d.toString().trim
 
 await new Promise((resolve) => setTimeout(resolve, 4000));
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({
+  args: [
+    '--disable-background-timer-throttling',
+    '--disable-renderer-backgrounding',
+    '--disable-backgrounding-occluded-windows',
+  ],
+});
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('console', (msg) => {

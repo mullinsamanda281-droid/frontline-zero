@@ -7,6 +7,9 @@ export interface ShotOutcome {
   hitCount: number;
   totalDamage: number;
   bloom: number;
+  lastHitX: number;
+  lastHitY: number;
+  lastHitZ: number;
 }
 
 export interface WeaponUpdateInput {
@@ -81,7 +84,7 @@ export class WeaponRuntime {
   }
 
   fire(origin: Vec3, direction: Vec3, raycast: RaycastQuery, rng: () => number): ShotOutcome {
-    if (!this.canFire) return { hitCount: 0, totalDamage: 0, bloom: this.bloom };
+    if (!this.canFire) return { hitCount: 0, totalDamage: 0, bloom: this.bloom, lastHitX: 0, lastHitY: 0, lastHitZ: 0 };
 
     this.fireTimer = 1 / this.data.fireRate;
     this.ammo--;
@@ -99,13 +102,19 @@ export class WeaponRuntime {
     });
     let hitCount = 0;
     let totalDamage = 0;
+    let lastHitX = 0;
+    let lastHitY = 0;
+    let lastHitZ = 0;
     for (const hit of hits) {
       if (hit.target !== null) {
         hitCount++;
         totalDamage += hit.damage;
+        lastHitX = hit.hitX;
+        lastHitY = hit.hitY;
+        lastHitZ = hit.hitZ;
       }
     }
-    return { hitCount, totalDamage, bloom: this.bloom };
+    return { hitCount, totalDamage, bloom: this.bloom, lastHitX, lastHitY, lastHitZ };
   }
 
   reload(): void {

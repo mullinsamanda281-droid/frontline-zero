@@ -8,6 +8,11 @@ import { MouseLook, PointerLock } from './engine/input/mouseLook';
 import { FpsCamera } from './engine/camera/fpsCamera';
 import { Vec3 } from './engine/camera/vec3';
 import { CollisionWorld, makeAABB } from './engine/world/collision';
+import { PLACEMENTS, type BoxKind } from './engine/world/portMap';
+import { buildProp, type DecorKind } from './engine/world/props';
+import { createGround, createSky, createSun, createSunDisc, createWater, HORIZON_COLOR } from './engine/world/environment';
+import { buildSoldier, animateSoldier, type SoldierModel } from './engine/world/character';
+import { ParticleSystem } from './engine/effects/particles';
 import { MatchManager } from './engine/match/matchManager';
 import { SlideController } from './engine/movement/slide';
 import { LeanController } from './engine/movement/lean';
@@ -29,81 +34,87 @@ const MOUSE_SENSITIVITY = 0.002;
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x8fb4d9);
-scene.fog = new THREE.Fog(0x8fb4d9, 60, 160);
+scene.fog = new THREE.Fog(HORIZON_COLOR, 50, 170);
+scene.background = new THREE.Color(0xff0000);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300);
 camera.position.set(0, 1.6, 3);
 
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(120, 120),
-  new THREE.MeshLambertMaterial({ color: 0x7a7f7c }),
-);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
+const ground = createGround(150).mesh;
 scene.add(ground);
 
-const containerMaterial = new THREE.MeshLambertMaterial({ color: 0xb46a3f });
-const containerMaterialDark = new THREE.MeshLambertMaterial({ color: 0x8a4a28 });
-const warehouseMaterial = new THREE.MeshLambertMaterial({ color: 0x6b7b8c });
-const craneMaterial = new THREE.MeshLambertMaterial({ color: 0x2e3540 });
+const water = createWater(400);
+scene.add(water.mesh);
+const sky = createSky();
+scene.add(sky);
 
-type Box = { x: number; z: number; w: number; h: number; d: number; kind?: 'container' | 'containerDark' | 'warehouse' | 'crane' };
-const placements: Box[] = [
-  { x: -6, z: -10, w: 3, h: 2.5, d: 6 },
-  { x: 6, z: -8, w: 3, h: 2.5, d: 6 },
-  { x: 10, z: -18, w: 3, h: 2.5, d: 6 },
-  { x: -12, z: -16, w: 3, h: 2.5, d: 6 },
-  { x: 0, z: -24, w: 6, h: 5, d: 3, kind: 'containerDark' },
-  { x: -20, z: -6, w: 6, h: 1.2, d: 3 },
-  { x: 16, z: 4, w: 6, h: 1.2, d: 3 },
-  { x: -4, z: 8, w: 3, h: 2.5, d: 6 },
-  { x: 22, z: -12, w: 6, h: 5, d: 3, kind: 'containerDark' },
-  { x: -30, z: -28, w: 3, h: 2.5, d: 6 },
-  { x: -26, z: -40, w: 3, h: 2.5, d: 6 },
-  { x: 28, z: -30, w: 3, h: 2.5, d: 6 },
-  { x: 34, z: -16, w: 3, h: 2.5, d: 6 },
-  { x: 30, z: 14, w: 3, h: 2.5, d: 6 },
-  { x: -34, z: 12, w: 3, h: 2.5, d: 6 },
-  { x: -30, z: 30, w: 6, h: 1.2, d: 3 },
-  { x: 18, z: 26, w: 6, h: 1.2, d: 3 },
-  { x: -14, z: 30, w: 3, h: 2.5, d: 6 },
-  { x: 8, z: -44, w: 3, h: 2.5, d: 6 },
-  { x: -8, z: -50, w: 6, h: 5, d: 3, kind: 'containerDark' },
-  { x: 0, z: -60, w: 14, h: 6, d: 10, kind: 'warehouse' },
-  { x: 44, z: -44, w: 14, h: 6, d: 10, kind: 'warehouse' },
-  { x: -44, z: 44, w: 14, h: 6, d: 10, kind: 'warehouse' },
-  { x: 0, z: 44, w: 14, h: 6, d: 10, kind: 'warehouse' },
-  { x: -10, z: -70, w: 2, h: 14, d: 2, kind: 'crane' },
-  { x: 10, z: -70, w: 2, h: 14, d: 2, kind: 'crane' },
-  { x: 0, z: -66, w: 28, h: 2, d: 2, kind: 'crane' },
-  { x: 40, z: -70, w: 2, h: 14, d: 2, kind: 'crane' },
-  { x: 42, z: -66, w: 16, h: 2, d: 2, kind: 'crane' },
-];
+const sunDisc = createSunDisc();
+sunDisc.position.copy(new THREE.Vector3(42, 60, 28).normalize().multiplyScalar(165));
+scene.add(sunDisc);
+
+const particles = new ParticleSystem(scene);
+
+type Placement = { x: number; z: number; w: number; h: number; d: number; kind?: BoxKind | DecorKind };
+const placements: Placement[] = PLACEMENTS;
+const propMeshes: THREE.Object3D[] = [];
 for (const p of placements) {
-  const material =
-    p.kind === 'warehouse'
-      ? warehouseMaterial
-      : p.kind === 'crane'
-        ? craneMaterial
-        : p.kind === 'containerDark'
-          ? containerMaterialDark
-          : containerMaterial;
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, p.d), material);
-  mesh.position.set(p.x, p.h / 2, p.z);
-  scene.add(mesh);
+  const kind = p.kind ?? (p.h >= 1.5 ? 'crate' : 'pallet');
+  const built = buildProp(kind, p.w, p.h, p.d);
+  built.group.position.set(p.x, 0, p.z);
+  built.group.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) obj.castShadow = true;
+  });
+  scene.add(built.group);
+  propMeshes.push(built.group);
+}
+
+const DECOR: Array<{ x: number; z: number; kind: DecorKind }> = [
+  { x: 8, z: -56, kind: 'barrel' },
+  { x: 8.9, z: -56.8, kind: 'barrel' },
+  { x: -8, z: -56, kind: 'barrel' },
+  { x: 40, z: -40, kind: 'barrel' },
+  { x: 40.9, z: -40.8, kind: 'barrel' },
+  { x: -40, z: 40, kind: 'barrel' },
+  { x: -40.9, z: 40.8, kind: 'barrel' },
+  { x: 4, z: 40, kind: 'barrel' },
+  { x: 0, z: 38.6, kind: 'crate' },
+  { x: 46, z: -46.5, kind: 'crate' },
+  { x: -46, z: 46, kind: 'crate' },
+  { x: -3.4, z: -57.5, kind: 'pallet' },
+  { x: 37, z: -67, kind: 'pallet' },
+  { x: -12.5, z: -68, kind: 'pallet' },
+  { x: -28, z: -24, kind: 'sandbag' },
+  { x: 24, z: -26, kind: 'sandbag' },
+  { x: -28, z: 26, kind: 'sandbag' },
+  { x: 26, z: 28, kind: 'sandbag' },
+  { x: 0, z: -74, kind: 'buoy' },
+  { x: 50, z: -52, kind: 'buoy' },
+  { x: -52, z: 50, kind: 'buoy' },
+];
+for (const dec of DECOR) {
+  const built = buildProp(dec.kind, 1, 1, 1);
+  built.group.position.set(dec.x, 0, dec.z);
+  built.group.rotation.y = Math.random() * Math.PI * 2;
+  scene.add(built.group);
+  propMeshes.push(built.group);
 }
 
 const collisionWorld = new CollisionWorld(
   placements.map((p) => makeAABB(p.x, p.h / 2, p.z, p.w, p.h, p.d)),
 );
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x44606e, 1));
-const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-sun.position.set(30, 50, 20);
+scene.add(new THREE.HemisphereLight(0xbfd8f0, 0x4a4e40, 0.85));
+const sun = createSun();
 scene.add(sun);
+sun.target.position.set(0, 0, 0);
+scene.add(sun.target);
 
 const sceneManager = new SceneManager();
 sceneManager.goTo(GameState.Loading);
@@ -280,24 +291,22 @@ interface Hittable extends Damageable {
 const botManager = netMode ? null : new BotManager({ minPlayers: 4, humanCount: 1 });
 const botUnits: BotUnit[] = [];
 class BotUnit implements Damageable {
-  readonly body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.6, 1.2, 0.4),
-    new THREE.MeshLambertMaterial({ color: 0x7a2e2e }),
-  );
-  readonly head = new THREE.Mesh(
-    new THREE.BoxGeometry(0.32, 0.32, 0.32),
-    new THREE.MeshLambertMaterial({ color: 0xc9a88f }),
-  );
-  readonly group = new THREE.Group();
+  readonly body: THREE.Mesh;
+  readonly head: THREE.Mesh;
+  readonly group: THREE.Group;
+  private readonly model: SoldierModel;
+  private walkPhase = 0;
+  private lastX = 0;
+  private lastZ = 0;
+  private readonly bodyColor: number;
+  private readonly headColor: number;
   constructor(readonly bot: Bot) {
-    this.body.position.y = 0.85;
-    this.head.position.y = 1.6;
-    const gun = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.12, 0.6),
-      new THREE.MeshLambertMaterial({ color: 0x22262e }),
-    );
-    gun.position.set(0, 1.15, -0.4);
-    this.group.add(this.body, this.head, gun);
+    this.model = buildSoldier(bot.options.team);
+    this.body = this.model.body;
+    this.head = this.model.head;
+    this.group = this.model.group;
+    this.bodyColor = (this.body.material as THREE.MeshLambertMaterial).color.getHex();
+    this.headColor = (this.head.material as THREE.MeshLambertMaterial).color.getHex();
     this.place();
     scene.add(this.group);
   }
@@ -306,21 +315,33 @@ class BotUnit implements Damageable {
     this.bot.position.set(spawn.x, 0, spawn.z);
     this.group.position.set(spawn.x, 0, spawn.z);
     this.group.visible = true;
+    this.lastX = spawn.x;
+    this.lastZ = spawn.z;
   }
   takeDamage(amount: number): void {
     if (!this.bot.alive) return;
     this.bot.takeDamage(amount);
-    this.body.material.color.set(0xff8a8a);
-    this.head.material.color.set(0xffd2b0);
-    setTimeout(() => {
-      this.body.material.color.set(0x7a2e2e);
-      this.head.material.color.set(0xc9a88f);
-    }, 120);
+    const flash = (m: THREE.MeshLambertMaterial, original: number): void => {
+      m.color.set(0xff8a8a);
+      setTimeout(() => m.color.set(original), 120);
+    };
+    flash(this.body.material as THREE.MeshLambertMaterial, this.bodyColor);
+    flash(this.head.material as THREE.MeshLambertMaterial, this.headColor);
     if (!this.bot.alive) {
       this.group.visible = false;
       if (!netMode) match.kill('alpha', 'player', this.bot.options.name);
       addKillFeed('YOU', this.bot.options.name, 'alpha');
     }
+  }
+  animate(): void {
+    const dx = this.bot.position.x - this.lastX;
+    const dz = this.bot.position.z - this.lastZ;
+    this.lastX = this.bot.position.x;
+    this.lastZ = this.bot.position.z;
+    const speed = Math.hypot(dx, dz);
+    const moving = speed > 0.001;
+    if (moving) this.walkPhase += speed * 9;
+    animateSoldier(this.model, this.walkPhase, moving, this.bot.state === 'engage');
   }
 }
 botManager?.bots.forEach((b) => botUnits.push(new BotUnit(b)));
@@ -466,24 +487,13 @@ function switchWeapon(slot: number): void {
   weaponNameEl.textContent = weapon.data.name;
 }
 
-const remoteUnits = new Map<string, { group: THREE.Group; name: string }>();
+const remoteUnits = new Map<string, { group: THREE.Group; name: string; model: SoldierModel; phase: number; lastX: number; lastZ: number }>();
 
 function makeRemoteUnit(id: string, name: string): void {
   if (remoteUnits.has(id)) return;
-  const group = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.6, 1.2, 0.4),
-    new THREE.MeshLambertMaterial({ color: 0x8a3a3a }),
-  );
-  body.position.y = 0.85;
-  const head = new THREE.Mesh(
-    new THREE.BoxGeometry(0.32, 0.32, 0.32),
-    new THREE.MeshLambertMaterial({ color: 0xc9a88f }),
-  );
-  head.position.y = 1.6;
-  group.add(body, head);
-  scene.add(group);
-  remoteUnits.set(id, { group, name });
+  const model = buildSoldier('bravo');
+  scene.add(model.group);
+  remoteUnits.set(id, { group: model.group, name, model, phase: 0, lastX: 0, lastZ: 0 });
 }
 
 function removeRemoteUnit(id: string): void {
@@ -499,6 +509,7 @@ const fpsCounter = new FpsCounter(document.getElementById('fps-counter') as HTML
 let playerHealth = 100;
 let playerDead = false;
 let deathTimer = 0;
+let regenTimer = 3;
 const healthTextEl = document.getElementById('health-text') as HTMLElement;
 const dmgFlashEl = document.getElementById('dmg-flash') as HTMLElement;
 const respawnMsgEl = document.getElementById('respawn-msg') as HTMLElement;
@@ -513,6 +524,7 @@ let botShotsLanded = 0;
 
 function hurtPlayer(amount: number): void {
   if (playerDead) return;
+  regenTimer = 3;
   botShotsLanded++;
   playerHealth -= amount;
   updateHealth();
@@ -588,7 +600,7 @@ resize();
 const BASE_FOV = 75;
 
 type QualityLevel = 'low' | 'medium' | 'high';
-let qualityLevel: QualityLevel = 'high';
+let qualityLevel: QualityLevel = 'medium';
 let shadowEnabled = true;
 let shadowMapSize = 1024;
 
@@ -618,16 +630,17 @@ const scopeOverlay = document.getElementById('scope-overlay') as HTMLElement;
 
 function applyAds(): void {
   const adsZoom = weapon.data.scopeZoom ?? 1.3;
-  targetFov = adsHeld && !weapon.drawing ? BASE_FOV / adsZoom : BASE_FOV;
+  const ads = adsHeld && !weapon.drawing && !playerDead;
+  targetFov = ads ? BASE_FOV / adsZoom : BASE_FOV;
   currentFov += (targetFov - currentFov) * Math.min(1, 10 / 60);
   camera.fov = currentFov;
   camera.updateProjectionMatrix();
-  const scoped = adsHeld && (weapon.data.scopeZoom ?? 0) > 1;
+  const scoped = ads && (weapon.data.scopeZoom ?? 0) > 1;
   scopeOverlay.style.display = scoped ? 'block' : 'none';
   crosshairEl.classList.toggle('ads-hidden', scoped);
-  player.speedMultiplier = adsHeld ? (weapon.data.moveSpeedMultiplier ?? 1) : 1;
+  player.speedMultiplier = ads ? (weapon.data.moveSpeedMultiplier ?? 1) : 1;
   weaponPivot.position.lerp(
-    new THREE.Vector3(adsHeld ? 0 : 0.3, adsHeld ? -0.16 : -0.24, adsHeld ? -0.5 : -0.55),
+    new THREE.Vector3(ads ? 0 : 0.3, ads ? -0.16 : -0.24, ads ? -0.5 : -0.55),
     Math.min(1, 12 / 60),
   );
 }
@@ -648,6 +661,7 @@ const gameLoop = new GameLoop({
     });
     const collision = collisionWorld.resolveCapsule(player.position, 0.35, 1.8);
     player.floorY = collision.floorY;
+    water.tick(1 / 60);
     match.update(1 / 60);
     scoreboardTimerEl.textContent = formatTime(match.timeRemaining);
     teamAlphaEl.textContent = `ALPHA ${match.alphaScore}`;
@@ -705,6 +719,7 @@ const gameLoop = new GameLoop({
           },
         });
         unit.group.rotation.y = b.yaw;
+        unit.animate();
       }
     }
     bunnyHop.update(16.67, player, keyboard.isDown('Space'));
@@ -731,14 +746,20 @@ const gameLoop = new GameLoop({
     }
 
     const horizontalSpeed = Math.hypot(player.velocity.x, player.velocity.z);
-    const ads = adsHeld && !weapon.drawing;
-    player.speedMultiplier = ads ? (weapon.data.moveSpeedMultiplier ?? 1) : 1;
     weapon.update(1 / 60, { moving: horizontalSpeed > 0.1, triggerHeld });
     applyAds();
 
+    if (!playerDead) {
+      regenTimer -= 1 / 60;
+      if (regenTimer <= 0 && playerHealth < 100 && !netMode) {
+        playerHealth = Math.min(100, playerHealth + 10 * (1 / 60));
+        updateHealth();
+      }
+    }
+
     const wantsFire = weapon.data.semiAuto ? triggerPressed : triggerHeld;
     triggerPressed = false;
-    if (wantsFire && weapon.canFire) {
+    if (wantsFire && weapon.canFire && !playerDead) {
       const yaw = player.yaw;
       const pitch = player.pitch;
       const eye = new Vec3(
@@ -755,6 +776,8 @@ const gameLoop = new GameLoop({
       if (outcome.hitCount > 0) {
         spawnHitmarker();
         sfx.hit();
+        sfx.kill();
+        particles.spawnSpark(outcome.lastHitX, outcome.lastHitY, outcome.lastHitZ);
       }
       const model = modelFor(activeSlot);
       model.flash.visible = true;
@@ -762,26 +785,26 @@ const gameLoop = new GameLoop({
         model.flash.visible = false;
       }, 40);
       sfx.shoot();
-      if (outcome.hitCount > 0) {
-        sfx.kill();
-        const tracer = tracerPool.acquire();
-        tracer.visible = true;
-        tracer.position.set(eye.x, eye.y, eye.z);
-        const traceDir = new THREE.Vector3(dir.x, dir.y, dir.z).normalize();
-        const endX = eye.x + traceDir.x * 80;
-        const endY = eye.y + traceDir.y * 80;
-        const endZ = eye.z + traceDir.z * 80;
-        const positions = tracer.geometry.attributes.position;
-        positions.setXYZ(0, eye.x, eye.y, eye.z);
-        positions.setXYZ(1, endX, endY, endZ);
-        positions.needsUpdate = true;
-        tracer.geometry.setDrawRange(0, 2);
-        activeTracers.add(tracer);
-        setTimeout(() => {
-          tracerPool.release(tracer);
-          activeTracers.delete(tracer);
-        }, 100);
-      }
+      const muzzle = new THREE.Vector3(eye.x, eye.y, eye.z)
+        .add(new THREE.Vector3(dir.x, dir.y, dir.z).normalize().multiplyScalar(0.9));
+      particles.spawnSmoke(muzzle.x, muzzle.y, muzzle.z);
+      const tracer = tracerPool.acquire();
+      tracer.visible = true;
+      tracer.position.set(eye.x, eye.y, eye.z);
+      const traceDir = new THREE.Vector3(dir.x, dir.y, dir.z).normalize();
+      const endX = eye.x + traceDir.x * 80;
+      const endY = eye.y + traceDir.y * 80;
+      const endZ = eye.z + traceDir.z * 80;
+      const positions = tracer.geometry.attributes.position;
+      positions.setXYZ(0, eye.x, eye.y, eye.z);
+      positions.setXYZ(1, endX, endY, endZ);
+      positions.needsUpdate = true;
+      tracer.geometry.setDrawRange(0, 2);
+      activeTracers.add(tracer);
+      setTimeout(() => {
+        tracerPool.release(tracer);
+        activeTracers.delete(tracer);
+      }, 100);
       player.look(-weapon.recoil.yawOffset, -weapon.recoil.pitchOffset, 1);
     }
 
@@ -800,8 +823,16 @@ const gameLoop = new GameLoop({
     camera.updateProjectionMatrix();
     const frustum = new THREE.Frustum();
     frustum.setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const attachedToCamera = (obj: THREE.Object3D): boolean => {
+      let cur: THREE.Object3D | null = obj.parent;
+      while (cur) {
+        if (cur === camera) return true;
+        cur = cur.parent;
+      }
+      return false;
+    };
     scene.traverse((obj) => {
-      if (obj instanceof THREE.Mesh && obj !== ground) {
+      if (obj instanceof THREE.Mesh && obj !== ground && !attachedToCamera(obj)) {
         obj.visible = frustum.intersectsObject(obj);
       }
     });
@@ -820,16 +851,6 @@ updateHealth();
 weapon.draw();
 sceneManager.goTo(GameState.Match);
 
-interface SmokeHandle {
-  botCount: number;
-  botShots: () => number;
-  phase: () => string;
-}
-declare global {
-  interface Window {
-    __smoke?: SmokeHandle;
-  }
-}
 interface NetSmokeHandle {
   remoteCount: () => number;
   remotePos: () => { x: number; z: number } | null;

@@ -30,7 +30,9 @@ export type MatchEvent =
   | { kind: 'damage'; victim: string; amount: number; shooter: string }
   | { kind: 'join'; playerId: string }
   | { kind: 'leave'; playerId: string }
+  | { kind: 'disconnect'; playerId: string }
   | { kind: 'respawn'; playerId: string }
+  | { kind: 'spectate'; playerId: string; targetId: string | null }
   | { kind: 'match_end'; winner: 'alpha' | 'bravo' | null };
 
 const NAME_MAX = 24;

@@ -67,6 +67,7 @@ export class MatchServer {
       this.connections.delete(socket);
       if (conn.player && conn.room) {
         this.lobby.leave(conn.roomCode, conn.player.id);
+        this.lobby.disconnectPlayer(conn.roomCode, conn.player.id);
         this.broadcast(conn.room, { type: 'leave_notice', playerId: conn.player.id });
       }
     });

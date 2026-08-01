@@ -18,6 +18,8 @@ export interface RoomPlayer {
   camera: FpsCamera;
   hp: number;
   alive: boolean;
+  spectating: boolean;
+  spectateTarget: string | null;
   lastInputSeq: number;
   killDeath: { kills: number; deaths: number };
 }
@@ -97,6 +99,8 @@ export class MatchRoom {
       alive: true,
       lastInputSeq: -1,
       killDeath: { kills: 0, deaths: 0 },
+      spectating: false,
+      spectateTarget: null,
     };
     this.players.push(player);
     this.match.joinPlayer(id);
@@ -149,6 +153,14 @@ export class MatchRoom {
     }
   }
 
+  spectate(id: string, targetId: string | null): void {
+    const player = this.players.find((p) => p.id === id);
+    if (!player) return;
+    player.spectating = targetId !== null;
+    player.spectateTarget = targetId;
+    this.events.push({ kind: 'spectate', playerId: id, targetId } as never);
+  }
+
   respawn(id: string, awayFrom: Vec3): void {
     const player = this.players.find((p) => p.id === id);
     if (!player) return;
@@ -183,7 +195,9 @@ export class MatchRoom {
     this.tick++;
     for (const player of this.players) {
       if (!player.alive) {
-        player.camera.update(step, { forward: false, back: false, left: false, right: false, jump: false, sprint: false });
+        if (!player.spectating) {
+          player.camera.update(step, { forward: false, back: false, left: false, right: false, jump: false, sprint: false });
+        }
         continue;
       }
       const collision = this.collisionWorld.resolveCapsule(player.camera.position, 0.35, 1.8);

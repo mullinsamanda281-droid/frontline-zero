@@ -48,6 +48,12 @@ export class Lobby {
     }
   }
 
+  disconnectPlayer(roomCode: string, playerId: string): void {
+    const room = this.rooms.get(roomCode);
+    if (!room) return;
+    room.events.push({ kind: 'disconnect', playerId } as never);
+  }
+
   update(dt: number): void {
     const now = Date.now();
     for (const [code, room] of this.rooms) {

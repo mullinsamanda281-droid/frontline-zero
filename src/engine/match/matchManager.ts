@@ -47,6 +47,10 @@ export class MatchManager {
     this.onPhaseChange('warmup', null);
   }
 
+  skipWarmup(): void {
+    if (this.phase === 'warmup') this.phase = 'playing';
+  }
+
   joinPlayer(id: string): void {
     if (!this.players.has(id)) this.players.set(id, { kills: 0, deaths: 0 });
   }

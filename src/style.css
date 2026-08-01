@@ -421,3 +421,21 @@ body {
 #respawn-msg.hidden {
   display: none;
 }
+
+
+#net-ping {
+  position: absolute;
+  top: 8px;
+  left: 18px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #8fd3ff;
+  background: rgba(10, 16, 28, 0.7);
+  padding: 4px 10px;
+  border-radius: 3px;
+}
+
+#net-ping.hidden {
+  display: none;
+}

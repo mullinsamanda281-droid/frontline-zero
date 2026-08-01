@@ -20,6 +20,7 @@ import { type Damageable } from './engine/weapons/hitscan';
 import { Bot } from './engine/bots/bot';
 import { BotManager } from './engine/bots/botManager';
 import { selectSpawnPoint } from './engine/match/matchManager';
+import { NetClient } from './engine/net/netClient';
 
 const MOUSE_SENSITIVITY = 0.002;
 
@@ -124,6 +125,12 @@ document.addEventListener('pointerlockchange', () => {
 const mouse = new MouseLook();
 mouse.attach();
 
+const netParams = new URLSearchParams(window.location.search);
+const netUrl = netParams.get('net');
+const netMode = netUrl !== null;
+const netName = netParams.get('name') ?? 'OP-1';
+const netRoom = netParams.get('room') ?? 'default';
+
 const player = new FpsCamera({
   jumpSpeed: 6.2,
   staminaChangeListener: (ratio) => {
@@ -173,7 +180,7 @@ class TestTarget implements Damageable {
       this.hp = 100;
       targetsDown++;
       scoreEl.textContent = `TARGETS DOWN: ${targetsDown}`;
-      match.kill('alpha', 'player', `target-${this.body.position.x.toFixed(0)}`);
+      if (!netMode) match.kill('alpha', 'player', `target-${this.body.position.x.toFixed(0)}`);
       this.respawn();
     }
   }
@@ -226,7 +233,7 @@ interface Hittable extends Damageable {
   head: THREE.Mesh;
 }
 
-const botManager = new BotManager({ minPlayers: 4, humanCount: 1 });
+const botManager = netMode ? null : new BotManager({ minPlayers: 4, humanCount: 1 });
 const botUnits: BotUnit[] = [];
 class BotUnit implements Damageable {
   readonly body = new THREE.Mesh(
@@ -267,12 +274,12 @@ class BotUnit implements Damageable {
     }, 120);
     if (!this.bot.alive) {
       this.group.visible = false;
-      match.kill('alpha', 'player', this.bot.options.name);
+      if (!netMode) match.kill('alpha', 'player', this.bot.options.name);
       addKillFeed('YOU', this.bot.options.name, 'alpha');
     }
   }
 }
-botManager.bots.forEach((b) => botUnits.push(new BotUnit(b)));
+botManager?.bots.forEach((b) => botUnits.push(new BotUnit(b)));
 const hittableMeshes = [...targetMeshes, ...botUnits.flatMap((b) => [b.body, b.head])];
 const hittables: Hittable[] = [...targets, ...botUnits];
 
@@ -288,6 +295,60 @@ const match = new MatchManager(
 );
 match.start();
 match.joinPlayer('player');
+
+let myNetId: string | null = null;
+let netLatencyMs = 0;
+const netPingEl = document.getElementById('net-ping') as HTMLElement;
+if (netMode) netPingEl.classList.remove('hidden');
+const netClient = netMode
+  ? new NetClient(
+      { url: netUrl as string, name: netName, room: netRoom },
+      {
+        onWelcome: (playerId, players) => {
+          myNetId = playerId;
+          for (const p of players) {
+            if (p.id !== playerId) makeRemoteUnit(p.id, p.name);
+          }
+          addKillFeed('SYS', 'connected to room ' + netRoom, 'alpha');
+        },
+        onSnapshot: (_tick, players, events) => {
+          for (const p of players) {
+            if (p.id === myNetId) {
+              if (!p.alive && !playerDead) {
+                playerDead = true;
+                deathTimer = 2;
+                playerHealth = 0;
+                updateHealth();
+                respawnMsgEl.classList.remove('hidden');
+              }
+              continue;
+            }
+            makeRemoteUnit(p.id, p.name);
+            const unit = remoteUnits.get(p.id);
+            if (unit) {
+              unit.group.position.set(p.x, p.y, p.z);
+              unit.group.rotation.y = p.yaw;
+            }
+          }
+          for (const e of events) {
+            if (e.kind === 'kill') {
+              const killerName = players.find((pl) => pl.id === e.killer)?.name ?? e.killer;
+              const victimName = players.find((pl) => pl.id === e.victim)?.name ?? e.victim;
+              addKillFeed(killerName, victimName, 'alpha');
+              if (e.victim === myNetId) hurtPlayer(100);
+            }
+          }
+        },
+        onJoinNotice: (player) => {
+          makeRemoteUnit(player.id, player.name);
+          addKillFeed('SYS', player.name + ' joined', 'alpha');
+        },
+        onLeaveNotice: (playerId) => removeRemoteUnit(playerId),
+        onPong: () => undefined,
+        onDisconnect: () => addKillFeed('SYS', 'connection lost', 'bravo'),
+      },
+    )
+  : null;
 
 const matchEndEl = document.getElementById('match-end') as HTMLElement;
 const matchEndTitle = document.getElementById('match-end-title') as HTMLElement;
@@ -355,6 +416,34 @@ function switchWeapon(slot: number): void {
   weaponNameEl.textContent = weapon.data.name;
 }
 
+const remoteUnits = new Map<string, { group: THREE.Group; name: string }>();
+
+function makeRemoteUnit(id: string, name: string): void {
+  if (remoteUnits.has(id)) return;
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 1.2, 0.4),
+    new THREE.MeshLambertMaterial({ color: 0x8a3a3a }),
+  );
+  body.position.y = 0.85;
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(0.32, 0.32, 0.32),
+    new THREE.MeshLambertMaterial({ color: 0xc9a88f }),
+  );
+  head.position.y = 1.6;
+  group.add(body, head);
+  scene.add(group);
+  remoteUnits.set(id, { group, name });
+}
+
+function removeRemoteUnit(id: string): void {
+  const unit = remoteUnits.get(id);
+  if (unit) {
+    scene.remove(unit.group);
+    remoteUnits.delete(id);
+  }
+}
+
 const fpsCounter = new FpsCounter(document.getElementById('fps-counter') as HTMLElement);
 
 let playerHealth = 100;
@@ -385,7 +474,7 @@ function hurtPlayer(amount: number): void {
     deathTimer = 2;
     playerHealth = 0;
     updateHealth();
-    match.kill('bravo', 'ENEMY', 'player');
+    if (!netMode) match.kill('bravo', 'ENEMY', 'player');
     addKillFeed('ENEMY', 'YOU', 'bravo');
     respawnMsgEl.classList.remove('hidden');
   }
@@ -506,7 +595,7 @@ const gameLoop = new GameLoop({
         void respawnMsgEl.offsetWidth;
         respawnMsgEl.classList.add('hidden');
       }
-    } else {
+    } else if (!netMode) {
       const playerEye = new Vec3(
         player.position.x + player.right.x * lean.offset,
         player.position.y + player.eyeHeight + lean.heightOffset,
@@ -541,6 +630,25 @@ const gameLoop = new GameLoop({
     bunnyHop.update(16.67, player, keyboard.isDown('Space'));
     lean.update(1 / 60, player, keyboard.isDown('KeyQ'), keyboard.isDown('KeyE'));
     dive.update(1 / 60, player, diveHeld, keyboard.isDown('KeyZ'));
+
+    if (netClient) {
+      netClient.sendInput({
+        forward: keyboard.isDown('KeyW'),
+        back: keyboard.isDown('KeyS'),
+        left: keyboard.isDown('KeyA'),
+        right: keyboard.isDown('KeyD'),
+        jump: keyboard.isDown('Space'),
+        sprint: keyboard.isDown('ShiftLeft'),
+        yaw: player.yaw,
+        pitch: player.pitch,
+      });
+      if (!netClient._lastPing || performance.now() - netClient._lastPing > 1000) {
+        netClient.ping();
+        netClient._lastPing = performance.now();
+      }
+      netLatencyMs = netClient.latencyMs;
+      netPingEl.textContent = netLatencyMs > 0 ? `${Math.round(netLatencyMs)} ms` : 'PING …';
+    }
 
     const horizontalSpeed = Math.hypot(player.velocity.x, player.velocity.z);
     const ads = adsHeld && !weapon.drawing;
@@ -614,8 +722,31 @@ declare global {
     __smoke?: SmokeHandle;
   }
 }
+interface NetSmokeHandle {
+  remoteCount: () => number;
+  remotePos: () => { x: number; z: number } | null;
+}
+interface SmokeHandle {
+  botCount: number;
+  botShots: () => number;
+  phase: () => string;
+  net?: NetSmokeHandle;
+}
+declare global {
+  interface Window {
+    __smoke?: SmokeHandle;
+    __net?: NetSmokeHandle;
+  }
+}
 window.__smoke = {
   botCount: botUnits.length,
   botShots: () => botShotsLanded,
   phase: () => match.phase,
+};
+window.__net = {
+  remoteCount: () => remoteUnits.size,
+  remotePos: () => {
+    const unit = [...remoteUnits.values()][0];
+    return unit ? { x: unit.group.position.x, z: unit.group.position.z } : null;
+  },
 };

@@ -40,22 +40,51 @@ scene.add(ground);
 
 const containerMaterial = new THREE.MeshLambertMaterial({ color: 0xb46a3f });
 const containerMaterialDark = new THREE.MeshLambertMaterial({ color: 0x8a4a28 });
-const placements: { x: number; z: number; w: number; h: number; d: number }[] = [
+const warehouseMaterial = new THREE.MeshLambertMaterial({ color: 0x6b7b8c });
+const craneMaterial = new THREE.MeshLambertMaterial({ color: 0x2e3540 });
+
+type Box = { x: number; z: number; w: number; h: number; d: number; kind?: 'container' | 'containerDark' | 'warehouse' | 'crane' };
+const placements: Box[] = [
   { x: -6, z: -10, w: 3, h: 2.5, d: 6 },
   { x: 6, z: -8, w: 3, h: 2.5, d: 6 },
   { x: 10, z: -18, w: 3, h: 2.5, d: 6 },
   { x: -12, z: -16, w: 3, h: 2.5, d: 6 },
-  { x: 0, z: -24, w: 6, h: 5, d: 3 },
+  { x: 0, z: -24, w: 6, h: 5, d: 3, kind: 'containerDark' },
   { x: -20, z: -6, w: 6, h: 1.2, d: 3 },
   { x: 16, z: 4, w: 6, h: 1.2, d: 3 },
   { x: -4, z: 8, w: 3, h: 2.5, d: 6 },
-  { x: 22, z: -12, w: 6, h: 5, d: 3 },
+  { x: 22, z: -12, w: 6, h: 5, d: 3, kind: 'containerDark' },
+  { x: -30, z: -28, w: 3, h: 2.5, d: 6 },
+  { x: -26, z: -40, w: 3, h: 2.5, d: 6 },
+  { x: 28, z: -30, w: 3, h: 2.5, d: 6 },
+  { x: 34, z: -16, w: 3, h: 2.5, d: 6 },
+  { x: 30, z: 14, w: 3, h: 2.5, d: 6 },
+  { x: -34, z: 12, w: 3, h: 2.5, d: 6 },
+  { x: -30, z: 30, w: 6, h: 1.2, d: 3 },
+  { x: 18, z: 26, w: 6, h: 1.2, d: 3 },
+  { x: -14, z: 30, w: 3, h: 2.5, d: 6 },
+  { x: 8, z: -44, w: 3, h: 2.5, d: 6 },
+  { x: -8, z: -50, w: 6, h: 5, d: 3, kind: 'containerDark' },
+  { x: 0, z: -60, w: 14, h: 6, d: 10, kind: 'warehouse' },
+  { x: 44, z: -44, w: 14, h: 6, d: 10, kind: 'warehouse' },
+  { x: -44, z: 44, w: 14, h: 6, d: 10, kind: 'warehouse' },
+  { x: 0, z: 44, w: 14, h: 6, d: 10, kind: 'warehouse' },
+  { x: -10, z: -70, w: 2, h: 14, d: 2, kind: 'crane' },
+  { x: 10, z: -70, w: 2, h: 14, d: 2, kind: 'crane' },
+  { x: 0, z: -66, w: 28, h: 2, d: 2, kind: 'crane' },
+  { x: 40, z: -70, w: 2, h: 14, d: 2, kind: 'crane' },
+  { x: 42, z: -66, w: 16, h: 2, d: 2, kind: 'crane' },
 ];
 for (const p of placements) {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(p.w, p.h, p.d),
-    p.h > 3 ? containerMaterialDark : containerMaterial,
-  );
+  const material =
+    p.kind === 'warehouse'
+      ? warehouseMaterial
+      : p.kind === 'crane'
+        ? craneMaterial
+        : p.kind === 'containerDark'
+          ? containerMaterialDark
+          : containerMaterial;
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, p.d), material);
   mesh.position.set(p.x, p.h / 2, p.z);
   scene.add(mesh);
 }
@@ -145,10 +174,15 @@ class TestTarget implements Damageable {
   }
 
   respawn(): void {
-    const angle = Math.random() * Math.PI * 2;
-    const radius = 12 + Math.random() * 14;
-    const x = player.position.x + Math.cos(angle) * radius;
-    const z = player.position.z + Math.sin(angle) * radius;
+    let x = 0;
+    let z = 0;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 12 + Math.random() * 14;
+      x = player.position.x + Math.cos(angle) * radius;
+      z = player.position.z + Math.sin(angle) * radius;
+      if (collisionWorld.heightAt(x, z) === 0 && collisionWorld.raycast(new Vec3(x, 1, z), new Vec3(0, 0, -1), 2) === null) break;
+    }
     this.body.position.set(x, 0.8, z);
     this.head.position.set(x, 1.95, z);
   }
@@ -163,6 +197,10 @@ const targets: TestTarget[] = [
   new TestTarget(4, -30),
   new TestTarget(-10, -26),
   new TestTarget(20, 0),
+  new TestTarget(-28, -34),
+  new TestTarget(32, -22),
+  new TestTarget(26, 18),
+  new TestTarget(-30, 26),
 ];
 const targetMeshes = targets.flatMap((t) => [t.body, t.head]);
 

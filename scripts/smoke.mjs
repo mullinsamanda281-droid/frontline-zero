@@ -49,6 +49,18 @@ report('reload refills magazine', ammoReloaded.startsWith('30'), `after reload $
 await page.keyboard.press('Digit3');
 report('weapon switching works', (await page.locator('#weapon-name').textContent()).trim() === 'SR-21 Reaper');
 
+report('bots spawned', (await page.evaluate(() => window.__smoke?.botCount)) === 3);
+
+await page
+  .waitForFunction(() => window.__smoke?.phase() === 'playing', null, { timeout: 15000 })
+  .then(() => report('match enters playing phase', true))
+  .catch(() => report('match enters playing phase', false, 'stuck in warmup'));
+
+await page
+  .waitForFunction(() => (window.__smoke?.botShots() ?? 0) > 0, null, { timeout: 25000 })
+  .then(() => report('bots engage and damage the player', true))
+  .catch(() => report('bots engage and damage the player', false, 'no bot damage within 25s'));
+
 await page.screenshot({ path: screenshotPath });
 const png = PNG.sync.read(fs.readFileSync(screenshotPath));
 let nonBlack = 0;

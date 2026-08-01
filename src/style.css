@@ -255,3 +255,169 @@ body {
 #crosshair.ads-hidden {
   display: none;
 }
+
+
+#scoreboard {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  padding: 6px 14px;
+  background: rgba(10, 16, 28, 0.7);
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+#scoreboard-timer {
+  font-variant-numeric: tabular-nums;
+  color: #7fd1ff;
+}
+
+#team-alpha {
+  color: #6ec7ff;
+}
+
+#team-bravo {
+  color: #ff6e6e;
+}
+
+#match-end {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 12, 22, 0.88);
+  z-index: 20;
+  text-align: center;
+}
+
+#match-end.hidden {
+  display: none;
+}
+
+#match-end h2 {
+  margin: 0 0 8px;
+  font-size: 40px;
+  letter-spacing: 6px;
+}
+
+#match-end p {
+  margin: 0 0 28px;
+  font-size: 16px;
+  opacity: 0.85;
+}
+
+#restart {
+  padding: 12px 36px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  background: #1d5c8f;
+  color: #e8eef7;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#restart:hover {
+  background: #2a74b2;
+}
+
+
+#health-wrap {
+  position: absolute;
+  bottom: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#health-text {
+  font-weight: 800;
+  font-size: 15px;
+  min-width: 32px;
+  text-align: right;
+}
+
+#health-bar {
+  width: 220px;
+  height: 12px;
+  background: rgba(10, 16, 28, 0.7);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+#health-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #2ecc71, #a3e635);
+  transition: width 0.12s ease-out;
+}
+
+#kill-feed {
+  position: absolute;
+  top: 64px;
+  right: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.kill-entry {
+  padding: 4px 10px;
+  background: rgba(10, 16, 28, 0.75);
+  border-radius: 3px;
+}
+
+.k-alpha {
+  color: #7fd1ff;
+}
+
+.k-bravo {
+  color: #ff8a8a;
+}
+
+#dmg-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(255, 40, 40, 0) 40%, rgba(255, 30, 30, 0.5) 100%);
+}
+
+#dmg-flash.show {
+  animation: dmg 0.35s ease-out;
+}
+
+@keyframes dmg {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+#respawn-msg {
+  position: absolute;
+  bottom: 130px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: #ff5a5a;
+  text-shadow: 0 0 12px rgba(255, 60, 60, 0.6);
+}
+
+#respawn-msg.hidden {
+  display: none;
+}

@@ -321,13 +321,19 @@ const netClient = netMode
                 updateHealth();
                 respawnMsgEl.classList.remove('hidden');
               }
+              // Server-authoritative state received
               continue;
             }
             makeRemoteUnit(p.id, p.name);
             const unit = remoteUnits.get(p.id);
             if (unit) {
-              unit.group.position.set(p.x, p.y, p.z);
-              unit.group.rotation.y = p.yaw;
+              unit.group.position.x += (p.x - unit.group.position.x) * Math.min(1, 12 / 60);
+              unit.group.position.y += (p.y - unit.group.position.y) * Math.min(1, 12 / 60);
+              unit.group.position.z += (p.z - unit.group.position.z) * Math.min(1, 12 / 60);
+              let diff = p.yaw - unit.group.rotation.y;
+              while (diff > Math.PI) diff -= Math.PI * 2;
+              while (diff < -Math.PI) diff += Math.PI * 2;
+              unit.group.rotation.y += diff * Math.min(1, 10 / 60);
             }
           }
           for (const e of events) {

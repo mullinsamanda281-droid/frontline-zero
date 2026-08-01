@@ -21,6 +21,7 @@ import { Bot } from './engine/bots/bot';
 import { BotManager } from './engine/bots/botManager';
 import { selectSpawnPoint } from './engine/match/matchManager';
 import { NetClient } from './engine/net/netClient';
+import { ObjectPool } from './engine/perf/objectPool';
 
 const MOUSE_SENSITIVITY = 0.002;
 
@@ -150,10 +151,52 @@ const weaponSlots = weaponOrder.map((id) => new WeaponRuntime(WEAPONS[id]));
 let activeSlot = 0;
 let weapon = weaponSlots[0];
 
+const hitmarkerPool = new ObjectPool(
+  () => {
+    const el = document.createElement('div');
+    el.className = 'hitmarker';
+    document.body.appendChild(el);
+    return el;
+  },
+  (el) => { el.classList.remove('show'); el.style.display = 'none'; },
+  5,
+);
+hitmarkerPool.acquire();
+const activeHitmarkers = new Set<HTMLDivElement>();
+
+function spawnHitmarker(): void {
+  const hm = hitmarkerPool.acquire();
+  hm.style.display = '';
+  void hm.offsetWidth;
+  hm.classList.add('show');
+  activeHitmarkers.add(hm);
+  setTimeout(() => {
+    hm.classList.remove('show');
+    activeHitmarkers.delete(hm);
+    hitmarkerPool.release(hm);
+  }, 350);
+}
+
+const tracerPool = new ObjectPool(
+  () => {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -1),
+    ]);
+    const mat = new THREE.LineBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.6 });
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+    line.visible = false;
+    return line;
+  },
+  (line) => { line.visible = false; line.geometry.setDrawRange(0, 0); },
+  10,
+);
+const activeTracers = new Set<THREE.Line>();
+
 const weaponNameEl = document.getElementById('weapon-name') as HTMLElement;
 const ammoEl = document.getElementById('ammo-count') as HTMLElement;
 const scoreEl = document.getElementById('score') as HTMLElement;
-const hitmarkerEl = document.getElementById('hitmarker') as HTMLElement;
 const healthFill = document.getElementById('health-fill') as HTMLElement;
 let targetsDown = 0;
 
@@ -679,15 +722,32 @@ const gameLoop = new GameLoop({
       );
       const outcome = weapon.fire(eye, dir, raycastTargets, Math.random);
       if (outcome.hitCount > 0) {
-        hitmarkerEl.classList.remove('show');
-        void hitmarkerEl.offsetWidth;
-        hitmarkerEl.classList.add('show');
+        spawnHitmarker();
       }
       const model = modelFor(activeSlot);
       model.flash.visible = true;
       setTimeout(() => {
         model.flash.visible = false;
       }, 40);
+      if (outcome.hitCount > 0) {
+        const tracer = tracerPool.acquire();
+        tracer.visible = true;
+        tracer.position.set(eye.x, eye.y, eye.z);
+        const traceDir = new THREE.Vector3(dir.x, dir.y, dir.z).normalize();
+        const endX = eye.x + traceDir.x * 80;
+        const endY = eye.y + traceDir.y * 80;
+        const endZ = eye.z + traceDir.z * 80;
+        const positions = tracer.geometry.attributes.position;
+        positions.setXYZ(0, eye.x, eye.y, eye.z);
+        positions.setXYZ(1, endX, endY, endZ);
+        positions.needsUpdate = true;
+        tracer.geometry.setDrawRange(0, 2);
+        activeTracers.add(tracer);
+        setTimeout(() => {
+          tracerPool.release(tracer);
+          activeTracers.delete(tracer);
+        }, 100);
+      }
       player.look(-weapon.recoil.yawOffset, -weapon.recoil.pitchOffset, 1);
     }
 

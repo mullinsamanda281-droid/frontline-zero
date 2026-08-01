@@ -21,6 +21,7 @@ import { Bot } from './engine/bots/bot';
 import { BotManager } from './engine/bots/botManager';
 import { selectSpawnPoint } from './engine/match/matchManager';
 import { NetClient } from './engine/net/netClient';
+import { sfx } from './audio/audioManager';
 import { ObjectPool } from './engine/perf/objectPool';
 
 const MOUSE_SENSITIVITY = 0.002;
@@ -541,6 +542,7 @@ const crosshairEl = document.getElementById('crosshair') as HTMLElement;
 let triggerHeld = false;
 let triggerPressed = false;
 let adsHeld = false;
+let jumpPressed = false;
 window.addEventListener('mousedown', (event) => {
   if (!pointerLock.isLocked) return;
   if (event.button === 0) {
@@ -560,7 +562,7 @@ window.addEventListener('wheel', (event) => {
   switchWeapon((activeSlot + delta + weaponOrder.length) % weaponOrder.length);
 });
 window.addEventListener('keydown', (event) => {
-  if (event.code === 'KeyR') weapon.reload();
+  if (event.code === 'KeyR') { weapon.reload(); sfx.reload(); }
   const slotMap: Record<string, number> = {
     Digit1: 0,
     Digit2: 1,
@@ -570,7 +572,7 @@ window.addEventListener('keydown', (event) => {
     Digit6: 5,
   };
   const slot = slotMap[event.code];
-  if (slot !== undefined) switchWeapon(slot);
+  if (slot !== undefined) { switchWeapon(slot); sfx.switch(); }
   if (event.code === 'KeyQ' && !event.repeat) cycleQuality();
 });
 
@@ -652,6 +654,8 @@ const gameLoop = new GameLoop({
     teamBravoEl.textContent = `${match.bravoScore} BRAVO`;
     slide.update(1 / 60, player, crouchHeld);
 
+    if (keyboard.isDown('Space') && !jumpPressed) { sfx.jump(); jumpPressed = true; }
+    if (!keyboard.isDown('Space')) jumpPressed = false;
     if (playerDead) {
       deathTimer -= 1 / 60;
       if (deathTimer <= 0) {
@@ -750,13 +754,16 @@ const gameLoop = new GameLoop({
       const outcome = weapon.fire(eye, dir, raycastTargets, Math.random);
       if (outcome.hitCount > 0) {
         spawnHitmarker();
+        sfx.hit();
       }
       const model = modelFor(activeSlot);
       model.flash.visible = true;
       setTimeout(() => {
         model.flash.visible = false;
       }, 40);
+      sfx.shoot();
       if (outcome.hitCount > 0) {
+        sfx.kill();
         const tracer = tracerPool.acquire();
         tracer.visible = true;
         tracer.position.set(eye.x, eye.y, eye.z);

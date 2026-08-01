@@ -11,7 +11,13 @@ function report(name, pass, detail = '') {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({
+  args: [
+    '--disable-background-timer-throttling',
+    '--disable-renderer-backgrounding',
+    '--disable-backgrounding-occluded-windows',
+  ],
+});
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('console', (msg) => {
@@ -36,13 +42,13 @@ await page.keyboard.up('ShiftLeft');
 report('stamina drains while sprinting', parseInt(stamina) < 50, `stamina ${stamina}`);
 
 await page.mouse.down();
-await page.waitForTimeout(1000);
+await page.waitForTimeout(3000);
 await page.mouse.up();
 const ammoAfter = (await page.locator('#ammo-count').textContent()).trim();
 report('firing consumes ammo', ammoBefore !== ammoAfter, `${ammoBefore} -> ${ammoAfter}`);
 
 await page.keyboard.press('KeyR');
-await page.waitForTimeout(2500);
+await page.waitForTimeout(6500);
 const ammoReloaded = (await page.locator('#ammo-count').textContent()).trim();
 report('reload refills magazine', ammoReloaded.startsWith('30'), `after reload ${ammoReloaded}`);
 

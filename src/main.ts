@@ -17,6 +17,9 @@ import { WeaponRuntime } from './engine/weapons/weapon';
 import { WEAPONS } from './engine/weapons/weapons';
 import { buildWeaponModel, type WeaponModel } from './engine/weapons/models';
 import { type Damageable } from './engine/weapons/hitscan';
+import { Bot } from './engine/bots/bot';
+import { BotManager } from './engine/bots/botManager';
+import { selectSpawnPoint } from './engine/match/matchManager';
 
 const MOUSE_SENSITIVITY = 0.002;
 
@@ -206,6 +209,73 @@ const targets: TestTarget[] = [
 ];
 const targetMeshes = targets.flatMap((t) => [t.body, t.head]);
 
+const spawnPoints = [
+  new Vec3(0, 0, 0),
+  new Vec3(25, 0, 0),
+  new Vec3(-25, 0, 0),
+  new Vec3(0, 0, 25),
+  new Vec3(0, 0, -25),
+  new Vec3(25, 0, 25),
+  new Vec3(-25, 0, 25),
+  new Vec3(25, 0, -25),
+  new Vec3(-25, 0, -25),
+];
+
+interface Hittable extends Damageable {
+  body: THREE.Mesh;
+  head: THREE.Mesh;
+}
+
+const botManager = new BotManager({ minPlayers: 4, humanCount: 1 });
+const botUnits: BotUnit[] = [];
+class BotUnit implements Damageable {
+  readonly body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 1.2, 0.4),
+    new THREE.MeshLambertMaterial({ color: 0x7a2e2e }),
+  );
+  readonly head = new THREE.Mesh(
+    new THREE.BoxGeometry(0.32, 0.32, 0.32),
+    new THREE.MeshLambertMaterial({ color: 0xc9a88f }),
+  );
+  readonly group = new THREE.Group();
+  constructor(readonly bot: Bot) {
+    this.body.position.y = 0.85;
+    this.head.position.y = 1.6;
+    const gun = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.12, 0.6),
+      new THREE.MeshLambertMaterial({ color: 0x22262e }),
+    );
+    gun.position.set(0, 1.15, -0.4);
+    this.group.add(this.body, this.head, gun);
+    this.place();
+    scene.add(this.group);
+  }
+  place(): void {
+    const spawn = selectSpawnPoint(spawnPoints, player.position, Math.random);
+    this.bot.position.set(spawn.x, 0, spawn.z);
+    this.group.position.set(spawn.x, 0, spawn.z);
+    this.group.visible = true;
+  }
+  takeDamage(amount: number): void {
+    if (!this.bot.alive) return;
+    this.bot.takeDamage(amount);
+    this.body.material.color.set(0xff8a8a);
+    this.head.material.color.set(0xffd2b0);
+    setTimeout(() => {
+      this.body.material.color.set(0x7a2e2e);
+      this.head.material.color.set(0xc9a88f);
+    }, 120);
+    if (!this.bot.alive) {
+      this.group.visible = false;
+      match.kill('alpha', 'player', this.bot.options.name);
+      addKillFeed('YOU', this.bot.options.name, 'alpha');
+    }
+  }
+}
+botManager.bots.forEach((b) => botUnits.push(new BotUnit(b)));
+const hittableMeshes = [...targetMeshes, ...botUnits.flatMap((b) => [b.body, b.head])];
+const hittables: Hittable[] = [...targets, ...botUnits];
+
 const match = new MatchManager(
   { warmupSeconds: 3, matchSeconds: 300, scoreLimit: 30 },
   (phase, winner) => {
@@ -242,18 +312,19 @@ function raycastTargets(origin: Vec3, direction: Vec3, range: number) {
     new THREE.Vector3(origin.x, origin.y, origin.z),
     new THREE.Vector3(direction.x, direction.y, direction.z),
   );
-  const hits = raycaster.intersectObjects(targetMeshes, false);
-  let targetHit: { target: TestTarget | null; distance: number; isHeadshot: boolean } = {
+  const hits = raycaster.intersectObjects(hittableMeshes, false);
+  let targetHit: { target: Damageable | null; distance: number; isHeadshot: boolean } = {
     target: null,
     distance: range,
     isHeadshot: false,
   };
   if (hits.length > 0) {
     const hit = hits[0];
+    const hittable = hittables.find((h) => h.body === hit.object || h.head === hit.object);
     targetHit = {
-      target: targets.find((t) => t.body === hit.object || t.head === hit.object) ?? null,
+      target: hittable ?? null,
       distance: hit.distance,
-      isHeadshot: hit.object === targets.find((t) => t.head === hit.object)?.head,
+      isHeadshot: hittable !== undefined && hit.object === hittable.head,
     };
   }
   if (worldDist !== null && (targetHit.target === null || worldDist < targetHit.distance)) {
@@ -285,6 +356,48 @@ function switchWeapon(slot: number): void {
 }
 
 const fpsCounter = new FpsCounter(document.getElementById('fps-counter') as HTMLElement);
+
+let playerHealth = 100;
+let playerDead = false;
+let deathTimer = 0;
+const healthTextEl = document.getElementById('health-text') as HTMLElement;
+const dmgFlashEl = document.getElementById('dmg-flash') as HTMLElement;
+const respawnMsgEl = document.getElementById('respawn-msg') as HTMLElement;
+const killFeedEl = document.getElementById('kill-feed') as HTMLElement;
+
+function updateHealth(): void {
+  healthFill.style.width = `${playerHealth}%`;
+  healthTextEl.textContent = `${Math.ceil(playerHealth)}`;
+}
+
+let botShotsLanded = 0;
+
+function hurtPlayer(amount: number): void {
+  if (playerDead) return;
+  botShotsLanded++;
+  playerHealth -= amount;
+  updateHealth();
+  dmgFlashEl.classList.remove('show');
+  void dmgFlashEl.offsetWidth;
+  dmgFlashEl.classList.add('show');
+  if (playerHealth <= 0) {
+    playerDead = true;
+    deathTimer = 2;
+    playerHealth = 0;
+    updateHealth();
+    match.kill('bravo', 'ENEMY', 'player');
+    addKillFeed('ENEMY', 'YOU', 'bravo');
+    respawnMsgEl.classList.remove('hidden');
+  }
+}
+
+function addKillFeed(killer: string, victim: string, team: 'alpha' | 'bravo'): void {
+  const entry = document.createElement('div');
+  entry.className = `kill-entry ${team === 'alpha' ? 'k-alpha' : 'k-bravo'}`;
+  entry.textContent = `${killer}  ▸  ${victim}`;
+  killFeedEl.appendChild(entry);
+  setTimeout(() => entry.remove(), 4000);
+}
 const crosshairEl = document.getElementById('crosshair') as HTMLElement;
 
 let triggerHeld = false;
@@ -373,6 +486,58 @@ const gameLoop = new GameLoop({
     teamAlphaEl.textContent = `ALPHA ${match.alphaScore}`;
     teamBravoEl.textContent = `${match.bravoScore} BRAVO`;
     slide.update(1 / 60, player, crouchHeld);
+
+    if (playerDead) {
+      deathTimer -= 1 / 60;
+      if (deathTimer <= 0) {
+        const botsCentroid = botUnits.reduce(
+          (acc, b) => ({ x: acc.x + b.bot.position.x, z: acc.z + b.bot.position.z }),
+          { x: 0, z: 0 },
+        );
+        botsCentroid.x /= botUnits.length;
+        botsCentroid.z /= botUnits.length;
+        const spawn = selectSpawnPoint(spawnPoints, botsCentroid, Math.random);
+        player.position.set(spawn.x, 0, spawn.z);
+        player.velocity.set(0, 0, 0);
+        playerDead = false;
+        playerHealth = 100;
+        updateHealth();
+        respawnMsgEl.classList.remove('hidden');
+        void respawnMsgEl.offsetWidth;
+        respawnMsgEl.classList.add('hidden');
+      }
+    } else {
+      const playerEye = new Vec3(
+        player.position.x + player.right.x * lean.offset,
+        player.position.y + player.eyeHeight + lean.heightOffset,
+        player.position.z + player.right.z * lean.offset,
+      );
+      for (const unit of botUnits) {
+        const b = unit.bot;
+        if (!b.alive && b.respawnTimer <= 0 && Number.isFinite(b.respawnTimer)) {
+          b.alive = true;
+          b.health = 100;
+          b.state = 'patrol';
+          unit.place();
+        }
+        const botEye = new Vec3(b.position.x, b.position.y + 1.5, b.position.z);
+        const toPlayer = new Vec3(
+          playerEye.x - botEye.x,
+          playerEye.y - botEye.y,
+          playerEye.z - botEye.z,
+        );
+        const dist = toPlayer.length;
+        const los = collisionWorld.raycast(botEye, toPlayer.scale(1 / Math.max(dist, 1e-6)), dist) === null;
+        b.update(1 / 60, {
+          playerPosition: new Vec3(playerEye.x, 0, playerEye.z),
+          lineOfSight: los,
+          shootPlayer: (damage) => {
+            if (match.phase === 'playing') hurtPlayer(damage);
+          },
+        });
+        unit.group.rotation.y = b.yaw;
+      }
+    }
     bunnyHop.update(16.67, player, keyboard.isDown('Space'));
     lean.update(1 / 60, player, keyboard.isDown('KeyQ'), keyboard.isDown('KeyE'));
     dive.update(1 / 60, player, diveHeld, keyboard.isDown('KeyZ'));
@@ -435,6 +600,22 @@ renderer.setAnimationLoop((time) => {
 });
 
 weaponNameEl.textContent = weapon.data.name;
-healthFill.style.width = '100%';
+updateHealth();
 weapon.draw();
 sceneManager.goTo(GameState.Match);
+
+interface SmokeHandle {
+  botCount: number;
+  botShots: () => number;
+  phase: () => string;
+}
+declare global {
+  interface Window {
+    __smoke?: SmokeHandle;
+  }
+}
+window.__smoke = {
+  botCount: botUnits.length,
+  botShots: () => botShotsLanded,
+  phase: () => match.phase,
+};

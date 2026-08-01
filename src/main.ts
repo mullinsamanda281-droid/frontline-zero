@@ -571,6 +571,7 @@ window.addEventListener('keydown', (event) => {
   };
   const slot = slotMap[event.code];
   if (slot !== undefined) switchWeapon(slot);
+  if (event.code === 'KeyQ' && !event.repeat) cycleQuality();
 });
 
 function resize(): void {
@@ -583,6 +584,32 @@ window.addEventListener('resize', resize);
 resize();
 
 const BASE_FOV = 75;
+
+type QualityLevel = 'low' | 'medium' | 'high';
+let qualityLevel: QualityLevel = 'high';
+let shadowEnabled = true;
+let shadowMapSize = 1024;
+
+function applyQuality(): void {
+  const dpr = Math.min(window.devicePixelRatio, qualityLevel === 'low' ? 1 : qualityLevel === 'medium' ? 1.5 : 2);
+  renderer.setPixelRatio(dpr);
+  shadowEnabled = qualityLevel !== 'low';
+  shadowMapSize = qualityLevel === 'low' ? 512 : qualityLevel === 'medium' ? 1024 : 2048;
+  if (sun) {
+    sun.castShadow = shadowEnabled;
+    sun.shadow.mapSize.width = shadowMapSize;
+    sun.shadow.mapSize.height = shadowMapSize;
+  }
+  const qEl = document.getElementById('quality-level') as HTMLElement;
+  if (qEl) qEl.textContent = qualityLevel.toUpperCase();
+}
+
+function cycleQuality(): void {
+  const levels: QualityLevel[] = ['low', 'medium', 'high'];
+  const idx = levels.indexOf(qualityLevel);
+  qualityLevel = levels[(idx + 1) % levels.length];
+  applyQuality();
+}
 let currentFov = BASE_FOV;
 let targetFov = BASE_FOV;
 const scopeOverlay = document.getElementById('scope-overlay') as HTMLElement;
@@ -763,6 +790,14 @@ const gameLoop = new GameLoop({
     camera.rotation.order = 'YXZ';
     camera.rotation.y = player.yaw;
     camera.rotation.x = player.pitch;
+    camera.updateProjectionMatrix();
+    const frustum = new THREE.Frustum();
+    frustum.setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    scene.traverse((obj) => {
+      if (obj instanceof THREE.Mesh && obj !== ground) {
+        obj.visible = frustum.intersectsObject(obj);
+      }
+    });
     renderer.render(scene, camera);
     fpsCounter.tick();
   },
